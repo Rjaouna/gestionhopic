@@ -1,0 +1,30 @@
+{
+    "name": "tempo-rh/absence",
+    "description": "Espace interne de gestion des absences et des congés",
+    "type": "project",
+    "require": {
+        "php": ">=8.4",
+        "ext-pdo_sqlite": "*",
+        "doctrine/doctrine-bundle": "^3.0",
+        "doctrine/doctrine-migrations-bundle": "^4.0",
+        "doctrine/orm": "^3.5",
+        "symfony/asset": "8.1.*",
+        "symfony/asset-mapper": "8.1.*",
+        "symfony/console": "8.1.*",
+        "symfony/dotenv": "8.1.*",
+        "symfony/form": "8.1.*",
+        "symfony/framework-bundle": "8.1.*",
+        "symfony/mailer": "8.1.*",
+        "symfony/rate-limiter": "8.1.*",
+        "symfony/security-bundle": "8.1.*",
+        "symfony/security-csrf": "8.1.*",
+        "symfony/stimulus-bundle": "^2.30 || ^3.0",
+        "symfony/translation": "8.1.*",
+        "symfony/twig-bundle": "8.1.*",
+        "symfony/validator": "8.1.*",
+        "symfony/workflow": "8.1.*",
+        "symfony/yaml": "8.1.*"
+    },
+    "autoload": {"psr-4": {"App\\": "src/", "DoctrineMigrations\\": "migrations/"}},
+    "config": {"sort-packages": true}
+}

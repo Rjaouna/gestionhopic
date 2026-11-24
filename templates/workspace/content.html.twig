@@ -1,0 +1,22 @@
+{% set identity = identity ?? application_appearance() %}
+<div class="workspace-page" data-page data-section="{{ section }}" data-title="{{ titles[section] }}" data-pending="{{ pendingCount }}" data-unread="{{ unread }}" data-appearance="{{ identity|json_encode }}">
+{% if section == 'dashboard' %}
+    {% include admin ? 'workspace/dashboard.html.twig' : 'workspace/employee.html.twig' %}
+{% elseif section == 'planning' %}
+    {% include 'workspace/planning.html.twig' %}
+{% elseif section == 'personnalisation' %}
+    {% include 'workspace/appearance.html.twig' %}
+{% elseif section == 'articles-ebp' %}
+    {% include 'inventory/catalog.html.twig' %}
+{% elseif section == 'connexion-bdd' %}
+    {% include 'inventory/connection.html.twig' %}
+{% elseif section == 'assigner' %}
+    {% include 'inventory/assign.html.twig' %}
+{% elseif section == 'etat' %}
+    {% include 'inventory/status.html.twig' %}
+{% elseif section in ['inventaires', 'liste'] %}
+    {% include 'inventory/employee.html.twig' %}
+{% else %}
+    {% include 'workspace/sections.html.twig' %}
+{% endif %}
+</div>

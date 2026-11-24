@@ -1,0 +1,82 @@
+{% import 'workspace/_components.html.twig' as ui %}
+{% set route = 'admin_inventory' %}
+<div class="page-heading">
+    <div><h1>BDD Articles EBP</h1><p>Retrouvez vos références, leurs familles et les quantités issues d’EBP.</p></div>
+    <div class="heading-actions">
+        <button class="btn btn-outline-danger" type="button" aria-haspopup="dialog"
+                data-modal-url="{{ path('workspace_action', {action:'vider-bdd-ebp'}) }}"><i class="bi bi-trash" aria-hidden="true"></i> Vider la BDD</button>
+        <a class="btn btn-outline-tempo" href="{{ path(route, {section:'connexion-bdd'}) }}" data-nav><i class="bi bi-arrow-repeat" aria-hidden="true"></i> Synchroniser le catalogue</a>
+    </div>
+</div>
+
+<dl class="inventory-metrics">
+    {% for metric in [
+        ['Articles', articleStats.articles, 'boxes', 'mint'],
+        ['Catégories', articleStats.categories, 'tags', 'violet'],
+        ['Marques', articleStats.brands, 'tag', 'blue'],
+        ['Articles en stock', articleStats.available, 'check2-circle', 'amber']
+    ] %}
+        <div class="card inventory-metric">
+            <span class="metric-icon tone-{{ metric[3] }}"><i class="bi bi-{{ metric[2] }}" aria-hidden="true"></i></span>
+            <div><dt>{{ metric[0] }}</dt><dd>{{ metric[1]|number_format(0, ',', ' ') }}</dd></div>
+        </div>
+    {% endfor %}
+</dl>
+
+<form class="card filters-bar inventory-filters" method="get" action="{{ path(route, {section:section}) }}" data-filter data-auto-filter>
+    <label class="search-control"><i class="bi bi-search" aria-hidden="true"></i>
+        <input name="q" class="form-control" placeholder="Référence, désignation, véhicule, OEM…" maxlength="160" value="{{ search }}"
+               aria-label="Rechercher un article" data-live-search>
+    </label>
+    <select name="categorie" class="form-select" aria-label="Catégorie">
+        <option value="">Toutes les catégories</option>
+        {% for category in articleCategories %}<option value="{{ category }}" {{ category == articleCategory ? 'selected' }}>{{ category }}</option>{% endfor %}
+    </select>
+    <select name="marque" class="form-select" aria-label="Marque">
+        <option value="">Toutes les marques</option>
+        {% for brand in articleBrands %}<option value="{{ brand }}" {{ brand == articleBrand ? 'selected' }}>{{ brand }}</option>{% endfor %}
+    </select>
+    {% if search or articleCategory or articleBrand %}
+        <a class="text-link record-underline" href="{{ path(route, {section:section}) }}" data-nav>Effacer les filtres</a>
+    {% endif %}
+</form>
+
+<section class="card inventory-catalog" aria-label="Catalogue des articles EBP" data-controller="inventory-live">
+    {% if articles %}
+        <div class="table-responsive" tabindex="0" aria-label="Tableau des articles">
+            <table class="table tempo-table inventory-table">
+                <thead><tr>
+                    <th scope="col">Article</th><th scope="col">Inventaire</th><th scope="col">Catégorie</th><th scope="col">Marque</th>
+                    <th scope="col" class="text-end">Qté EBP</th><th scope="col" class="text-end">Qté inventoriée</th>
+                </tr></thead>
+                <tbody>
+                    {% for row in articles %}
+                        <tr>
+                            <td>
+                                <div class="inventory-item">
+                                    <span class="inventory-item-photo"><i class="bi bi-box-seam" aria-hidden="true"></i>{% if row.photo %}<img src="{{ row.photo }}" alt="" loading="lazy" referrerpolicy="no-referrer" data-inventory-photo>{% endif %}</span>
+                                    <div class="inventory-item-name">
+                                        <strong>{{ ui.recordLink(row.description ?: row.reference, 'article-ebp', row.id, 'Consulter la fiche ' ~ row.reference) }}</strong>
+                                        <small>{{ row.reference }}</small>
+                                    </div>
+                                </div>
+                            </td>
+                            <td id="ebp-inventory-{{ row.id }}" data-inventory-live-target="content">
+                                {% if row.inventory_active %}
+                                    <a class="status-badge tone-amber" data-nav href="{{ path(route, {section:'etat', q:row.reference}) }}"><span aria-hidden="true"></span>Inventaire en cours</a>
+                                {% else %}—{% endif %}
+                            </td>
+                            <td>{{ row.category ?: '—' }}</td>
+                            <td>{{ row.brand ?: '—' }}</td>
+                            <td class="text-end"><span class="inventory-quantity {{ row.stock < 0 ? 'tone-coral' : (row.stock > 0 ? 'tone-blue' : 'tone-neutral') }}">{{ row.stock|replace({'.':','}) }}</span></td>
+                            <td class="text-end" id="ebp-counted-{{ row.id }}" data-inventory-live-target="content"><span class="inventory-quantity {{ row.counted_quantity > 0 ? 'tone-mint' : 'tone-neutral' }}">{{ row.counted_quantity|replace({'.':','}) }}</span></td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    {% else %}
+        {{ ui.empty(articleStats.articles ? 'Aucun article ne correspond à ces filtres.' : 'Synchronisez le CSV dans Connexion BDD pour afficher les articles.', 'boxes') }}
+    {% endif %}
+    {% include 'workspace/_pagination.html.twig' with {paginationLabel:'Pagination des articles EBP'} %}
+</section>

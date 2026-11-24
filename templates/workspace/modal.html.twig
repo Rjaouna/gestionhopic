@@ -1,0 +1,350 @@
+{% import 'workspace/_components.html.twig' as ui %}
+{% import 'inventory/_components.html.twig' as inventory %}
+{% set labels = {
+    'nouvelle':'Nouvelle demande', 'demande':'Détails de la demande', 'notifications':'Notifications',
+    'collaborateur':id ? 'Modifier le collaborateur' : 'Ajouter un collaborateur',
+    'fiche-collaborateur':'Fiche collaborateur', 'mot-de-passe-collaborateur':'Réinitialiser le mot de passe',
+    'service':id ? 'Modifier le service' : 'Ajouter un service', 'solde':'Ajuster un solde',
+    'type':id ? 'Modifier le type d’absence' : 'Ajouter un type d’absence', 'compteur':id ? 'Modifier le compteur' : 'Ajouter un compteur',
+    'horaire':'Modifier l’horaire de travail', 'ferie':id ? 'Modifier le jour férié' : 'Ajouter un jour férié',
+    'profil':'Modifier mon profil', 'regle-conges':'Règle des congés payés', 'article-ebp':'Fiche article EBP',
+    'vider-bdd-ebp':'Vider la BDD Articles EBP', 'assigner-inventaire':'Assigner un inventaire',
+    'cloturer-affectation':'Clôturer mon inventaire', 'rouvrir-affectation':'Rouvrir mon inventaire', 'cloturer-inventaire':'Clôturer l’inventaire',
+    'terminer-reste-inventaire':'Terminer le reste à 0',
+    'annuler-affectation-inventaire':'Annuler l’affectation', 'annuler-inventaire':'Annuler l’inventaire'
+} %}
+{% set icons = {
+    'nouvelle':'calendar2-plus', 'demande':'calendar2-check', 'notifications':'bell',
+    'collaborateur':id ? 'person-gear' : 'person-plus', 'fiche-collaborateur':'person-vcard',
+    'mot-de-passe-collaborateur':'key', 'service':'diagram-3', 'solde':'wallet2', 'type':'calendar2',
+    'compteur':'wallet2', 'horaire':'clock', 'ferie':'flag', 'profil':'person-circle', 'regle-conges':'calendar2-check', 'article-ebp':'box-seam',
+    'vider-bdd-ebp':'trash', 'assigner-inventaire':'clipboard-plus',
+    'cloturer-affectation':'clipboard-check', 'rouvrir-affectation':'arrow-counterclockwise', 'cloturer-inventaire':'clipboard-check',
+    'terminer-reste-inventaire':'list-check',
+    'annuler-affectation-inventaire':'x-circle', 'annuler-inventaire':'x-circle'
+} %}
+{% set inventoryCancellation = action in ['annuler-affectation-inventaire', 'annuler-inventaire'] %}
+{% set frame = 'modal-frame' ~ (inventoryCancellation or action in ['mot-de-passe-collaborateur','notifications','profil','ferie','vider-bdd-ebp','terminer-reste-inventaire'] ? ' modal-frame-compact' : '') %}
+{% set openingBalance = action == 'collaborateur' and not id and paidLeaveRule.counter_name is not null %}
+<header class="modal-header">
+    <div class="{{ frame }} modal-heading">
+        <div class="modal-heading-title">
+            <button class="icon-button modal-back" type="button" data-modal-back aria-label="Revenir à la fenêtre précédente" title="Retour" hidden>
+                <i class="bi bi-arrow-left" aria-hidden="true"></i>
+            </button>
+            <span class="modal-heading-icon"><i class="bi bi-{{ icons[action] }}" aria-hidden="true"></i></span>
+            <h2 class="modal-title" id="workspace-modal-title" tabindex="-1">{{ labels[action] }}</h2>
+        </div>
+        <button class="icon-button modal-close" type="button" data-bs-dismiss="modal" aria-label="Fermer" title="Fermer">
+            <i class="bi bi-x-lg" aria-hidden="true"></i>
+        </button>
+    </div>
+</header>
+<form data-modal-form action="{{ path('workspace_action', {action:action,id:id}) }}" method="post" enctype="multipart/form-data" class="modal-form"
+      {% if action == 'assigner-inventaire' %}data-controller="inventory-wizard" data-inventory-wizard-url-value="{{ path('admin_inventory_preview') }}" data-action="submit->inventory-wizard#validate"{% endif %}
+      {% if openingBalance %}data-controller="opening-balance" data-opening-balance-url-value="{{ path('admin_paid_leave_estimate') }}"{% endif %}>
+    {% if action not in ['fiche-collaborateur', 'article-ebp'] %}<input type="hidden" name="_token" value="{{ csrf_token('action-' ~ action ~ '-' ~ id) }}">{% endif %}
+    <div class="modal-body">
+        <div class="{{ frame }} modal-stage">
+        <div class="alert alert-danger" role="alert" data-form-error hidden></div>
+        <div class="modal-card">
+        {% if action == 'article-ebp' %}
+            {% include 'inventory/_article.html.twig' %}
+        {% elseif action == 'assigner-inventaire' %}
+            {% include 'inventory/_wizard.html.twig' %}
+        {% elseif action == 'cloturer-affectation' %}
+            <p class="mb-0">Confirmez la fin du comptage pour <strong>{{ assignment.name }}</strong>. Le responsable dispose de cinq minutes pour rouvrir son affectation. Ensuite, seule l’administration pourra la rouvrir.</p>
+        {% elseif action == 'rouvrir-affectation' %}
+            {% if assignment.campaign_closed %}
+                <p class="mb-0">L’administration a déjà clôturé cet inventaire.</p>
+            {% elseif not assignment.closed_at %}
+                <p class="mb-0">Votre comptage est déjà ouvert.</p>
+            {% else %}
+                <p class="mb-0">Le comptage pour <strong>{{ assignment.name }}</strong> sera de nouveau modifiable. L’affectation devra être clôturée après les corrections.</p>
+            {% endif %}
+        {% elseif action == 'terminer-reste-inventaire' %}
+            {% if zeroPreview.remaining %}
+                <input type="hidden" name="revision" value="{{ zeroPreview.revision }}">
+                <p><strong>{{ zeroPreview.remaining|number_format(0, ',', ' ') }} {{ zeroPreview.remaining == 1 ? 'article sera terminé à 0' : 'articles seront terminés à 0' }}</strong> sur l’ensemble de votre affectation, toutes pages confondues.</p>
+                <p class="muted {{ zeroPreview.drafts ? '' : 'mb-0' }}">Les quantités des articles déjà terminés sont conservées.</p>
+                {% if zeroPreview.drafts %}
+                    <p class="inventory-progress-message tone-amber">{{ zeroPreview.drafts|number_format(0, ',', ' ') }} {{ zeroPreview.drafts == 1 ? 'article en cours a une quantité saisie qui sera remplacée par 0.' : 'articles en cours ont des quantités saisies qui seront remplacées par 0.' }}</p>
+                {% endif %}
+            {% else %}
+                <p class="mb-0">Tous les articles sont déjà terminés. Vous pouvez clôturer votre inventaire.</p>
+            {% endif %}
+        {% elseif action == 'cloturer-inventaire' %}
+            <p class="mb-0">Confirmez la clôture de <strong>{{ campaign.name }}</strong> pour figer les quantités inventoriées et rendre l’export EBP disponible.</p>
+        {% elseif action == 'annuler-affectation-inventaire' %}
+            <p>L’affectation de <strong>{{ assignment.first_name }} {{ assignment.last_name }}</strong> sera retirée de la liste et de son espace.</p>
+            <p class="inventory-progress-message tone-amber">Les comptages du périmètre <strong>{{ inventory.scope(assignment) }}</strong> seront supprimés. {{ assignment.total == 1 ? 'L’article pourra être réattribué' : 'Les ' ~ assignment.total|number_format(0, ',', ' ') ~ ' articles pourront être réattribués' }}.</p>
+        {% elseif action == 'annuler-inventaire' %}
+            {% if campaign.closed_at %}
+                <p class="mb-0">Cet inventaire est clôturé.</p>
+            {% else %}
+                <p>L’inventaire <strong>{{ campaign.name }}</strong> sera retiré de la liste.</p>
+                <p class="inventory-progress-message tone-amber">Toutes ses affectations et leurs comptages seront supprimés. Le catalogue EBP est conservé.</p>
+            {% endif %}
+        {% elseif action == 'vider-bdd-ebp' %}
+            {% if storedArticles %}
+                <p><strong>{{ storedArticles|number_format(0, ',', ' ') }} {{ storedArticles == 1 ? 'article sera supprimé' : 'articles seront supprimés' }}</strong> du catalogue local, avec les quantités inventoriées correspondantes.</p>
+            {% else %}
+                <p>Le catalogue local est déjà vide.</p>
+            {% endif %}
+            <p class="muted mb-0">Les mises à jour en cours ou en attente seront annulées.</p>
+        {% elseif action == 'nouvelle' %}
+            <div data-duration-url="{{ path('workspace_duration') }}" class="form-stack">
+                {% if admin %}{{ ui.employeePicker('leave-employee', people) }}{% endif %}
+                <label class="field">Type d’absence
+                    <select name="type" class="form-select" required>
+                        <option value="">Choisir un type d’absence</option>
+                        {% for type in types %}
+                            <option value="{{ type.id }}"
+                                    data-attachment-policy="{{ type.requires_attachment ? 'required' : (type.allow_attachment ? 'optional' : 'none') }}"
+                                    data-half-days="{{ type.allow_half_days ? '1' : '0' }}"
+                                    data-counter="{{ type.counter ?? '' }}">{{ type.name }}</option>
+                        {% endfor %}
+                    </select>
+                </label>
+                <fieldset class="form-stack" data-leave-fields aria-label="Informations sur l’absence" hidden disabled>
+                    <div class="form-grid">
+                        <label class="field">Date de début<input class="form-control" type="date" name="start" required></label>
+                        <label class="field">Date de fin<input class="form-control" type="date" name="end" required></label>
+                    </div>
+                    <label class="form-check" data-half-day-option hidden>
+                        <input class="form-check-input" type="checkbox" data-half-day-toggle aria-controls="leave-slots">
+                        <span class="form-check-label">Préciser les demi-journées</span>
+                    </label>
+                    <div class="form-grid" id="leave-slots" data-leave-slots hidden>
+                        <label class="field">Moment du début<select class="form-select" name="startSlot" disabled><option value="morning">Matin</option><option value="afternoon">Après-midi</option></select></label>
+                        <label class="field">Moment de la fin<select class="form-select" name="endSlot" disabled><option value="afternoon">Après-midi</option><option value="morning">Matin</option></select></label>
+                    </div>
+                    <div class="form-summary" aria-live="polite">
+                        <i class="bi bi-calendar2-check" aria-hidden="true"></i>
+                        <span data-duration-label>Durée de l’absence</span><strong data-duration>—</strong>
+                    </div>
+                    <label class="field" data-leave-attachment hidden>
+                        Justificatif <span class="field-note" data-attachment-label></span>
+                        <input class="form-control" type="file" accept=".pdf,.png,.jpg,.jpeg" name="attachment" disabled>
+                        <small class="muted">PDF, PNG ou JPEG, 5 Mo maximum.</small>
+                    </label>
+                    <label class="field">Commentaire <span class="field-note">Facultatif</span>
+                        <textarea class="form-control" name="comment" rows="2" maxlength="2000" placeholder="Ajoutez une précision si nécessaire"></textarea>
+                    </label>
+                </fieldset>
+            </div>
+        {% elseif action == 'demande' %}
+            <div class="request-summary"><div class="person-cell">{{ ui.avatar(row, row.tone) }}<span><strong>{{ ui.employeeName(row, row.employee_id, admin) }}</strong><small>{{ ui.departmentLink(row.department, row.department_id, admin) }}</small></span></div>{{ ui.status(row.status) }}</div>
+            <dl class="request-details"><div><dt>Type d’absence</dt><dd>{{ ui.kind(row) }}</dd></div><div><dt>Période</dt><dd>{{ ui.range(row) }}</dd></div><div><dt>Durée</dt><dd>{{ tempo_days(row.units) }} j</dd></div><div><dt>Création</dt><dd>{{ tempo_date(row.created_at, 'd MMM yyyy') }}</dd></div>
+                {% if row.comment %}<div class="full"><dt>Commentaire</dt><dd>{{ row.comment }}</dd></div>{% endif %}
+                {% if row.decision_note != '' %}<div class="full"><dt>Motif</dt><dd>{{ row.decision_note }}</dd></div>{% endif %}
+                {% if row.attachment %}<div class="full"><dt>Justificatif</dt><dd><a class="text-link record-underline" href="{{ path('workspace_attachment', {id:id}) }}"><i class="bi bi-paperclip" aria-hidden="true"></i>{{ row.attachment_name }}</a></dd></div>{% endif %}
+            </dl>
+            {% if admin and row.status in ['pending','approved'] %}
+                <label class="field">Motif <span class="field-note">Facultatif</span>
+                    <textarea name="reason" class="form-control" rows="2" maxlength="500" placeholder="Ex. Effectif minimum à assurer"></textarea>
+                </label>
+            {% endif %}
+        {% elseif action == 'notifications' %}
+            {% if rows %}<ul class="notification-list list-unstyled mb-0">{% for item in rows %}<li><span class="metric-icon tone-{{ item.read_at ? 'neutral' : 'mint' }}"><i class="bi bi-bell" aria-hidden="true"></i></span><div><strong>{{ item.message }}</strong><small>{{ tempo_date(item.created_at, 'd MMM yyyy, HH:mm') }}</small></div></li>{% endfor %}</ul>
+            {% else %}{{ ui.empty('Aucune notification.', 'bell') }}{% endif %}
+        {% elseif action == 'solde' %}
+            <div class="form-stack" data-balances="{{ balances|map(b => {employee: b.employee_id, counter: b.counter_type_id, units: b.units})|json_encode }}">
+                {{ ui.employeePicker('balance-employee', people) }}
+                <label class="field">Compteur<select name="counter" class="form-select" required><option value="">Choisir un compteur</option>{% for counter in counters %}<option value="{{ counter.id }}">{{ counter.name }}</option>{% endfor %}</select></label>
+                <div class="form-grid">
+                    <label class="field">Opération<select name="operation" class="form-select"><option value="set">Définir le solde</option><option value="add">Ajouter des jours</option><option value="remove">Retirer des jours</option></select></label>
+                    <label class="field">Quantité en jours<input class="form-control" name="quantity" type="number" min="0" max="9999" step="0.5" placeholder="Ex. 2,5" required></label>
+                </div>
+                <div class="form-summary balance-preview" aria-live="polite"><span>Solde actuel <strong data-balance-now>—</strong></span><span>Nouveau solde <strong data-balance-next>—</strong></span></div>
+                <label class="field">Motif <span class="field-note">Facultatif</span>
+                    <textarea class="form-control" name="reason" maxlength="500" rows="2" placeholder="Ex. Régularisation de fin de mois"></textarea>
+                </label>
+            </div>
+        {% elseif action == 'fiche-collaborateur' %}
+            {{ ui.employeeOverview(row, row.job ?: (row.role == 'ROLE_ADMIN' ? 'Administration' : 'Collaborateur')) }}
+            <dl class="employee-facts">
+                {% set facts = {
+                    'Matricule':['hash',row.code],
+                    'Adresse e-mail':['envelope',row.email],
+                    'Téléphone':['telephone',row.phone ?: 'Non renseigné'],
+                    'Service':['diagram-3',ui.departmentLink(row.department, row.department_id)],
+                    'Jours travaillés':['clock',ui.workdays(schedule.days)],
+                    'Date d’embauche':['calendar3',row.hired_on ? tempo_date(row.hired_on, 'd MMMM yyyy') : 'Non renseignée'],
+                    'Rôle':['shield-check',row.role == 'ROLE_ADMIN' ? 'Administration' : 'Collaborateur']
+                } %}
+                {% if row.left_on %}
+                    {% set facts = facts|merge({'Date de départ':['calendar-minus',tempo_date(row.left_on, 'd MMMM yyyy')]}) %}
+                {% endif %}
+                {% for label, fact in facts %}
+                    <div><dt><i class="bi bi-{{ fact[0] }}" aria-hidden="true"></i>{{ label }}</dt><dd>{{ fact[1] }}</dd></div>
+                {% endfor %}
+            </dl>
+        {% elseif action == 'mot-de-passe-collaborateur' %}
+            <div class="form-stack password-reset-form">
+                {{ ui.employeeOverview(row, row.email) }}
+                {{ ui.passwordField('Nouveau mot de passe', 'password', '12 caractères minimum', 'le mot de passe') }}
+                {{ ui.passwordField('Confirmer le nouveau mot de passe', 'passwordConfirmation', 'Retapez le nouveau mot de passe', 'la confirmation') }}
+                {% if row.id == user.id %}<p class="muted mb-0">Vous devrez vous reconnecter avec le nouveau mot de passe.</p>{% endif %}
+            </div>
+        {% elseif action == 'collaborateur' %}
+            <div class="form-stack">
+                <div class="form-grid">
+                    <label class="field">Prénom<input class="form-control" name="firstName" maxlength="100" value="{{ row.first_name ?? '' }}" placeholder="Ex. Camille" required></label>
+                    <label class="field">Nom<input class="form-control" name="lastName" maxlength="100" value="{{ row.last_name ?? '' }}" placeholder="Ex. Martin" required></label>
+                </div>
+                <div class="form-grid">
+                    <label class="field">Adresse e-mail<input class="form-control" name="email" type="email" maxlength="180" value="{{ row.email ?? '' }}" placeholder="prenom@entreprise.fr" required></label>
+                    <label class="field">Matricule
+                        {% if id %}
+                            <input class="form-control" name="code" maxlength="30" value="{{ row.code }}" placeholder="Ex. TH-014" required>
+                        {% else %}
+                            <input class="form-control automatic-code" value="Attribué automatiquement" readonly>
+                        {% endif %}
+                    </label>
+                </div>
+                <div class="form-grid">
+                    <label class="field">Poste<input class="form-control" name="job" maxlength="120" value="{{ row.job ?? '' }}" placeholder="Ex. Responsable d’équipe"></label>
+                    <label class="field">Téléphone<input class="form-control" type="tel" name="phone" maxlength="40" value="{{ row.phone ?? '' }}" placeholder="Ex. 06 12 34 56 78"></label>
+                </div>
+                <div class="form-grid">
+                    <label class="field">Service<select class="form-select" name="department"><option value="">Sans service</option>{% for team in departments %}<option value="{{ team.id }}" {{ row.department_id|default(0) == team.id ? 'selected' }}>{{ team.name }}</option>{% endfor %}</select></label>
+                    <label class="field">Date d’embauche<input class="form-control" name="hired" type="date" value="{{ row.hired_on ?? '' }}" {{ not id ? 'required' }}
+                        {% if openingBalance %}data-opening-balance-target="date" data-action="input->opening-balance#estimate"{% endif %}></label>
+                </div>
+                {% if openingBalance %}
+                    <section class="opening-balance" aria-labelledby="initial-balance-title">
+                        <div class="opening-balance-heading">
+                            <h3 id="initial-balance-title"><i class="bi bi-wallet2" aria-hidden="true"></i> Solde initial de congés payés</h3>
+                            <button type="button" class="record-link record-underline" data-action="opening-balance#estimate" data-opening-balance-target="recalculate" hidden>Recalculer</button>
+                        </div>
+                        <p class="muted mb-0" data-opening-balance-target="status" aria-live="polite">Renseignez la date d’embauche pour calculer le solde proposé.</p>
+                        <label class="field">Jours à créditer · {{ paidLeaveRule.counter_name }}
+                            <input class="form-control" name="initialBalance" type="number" min="0" max="9999.5" step="0.5"
+                                   placeholder="Ex. 9" data-opening-balance-target="amount" data-action="input->opening-balance#confirmAgain" required disabled>
+                        </label>
+                        <input type="hidden" name="initialEstimate" data-opening-balance-target="key">
+                        <label class="form-check">
+                            <input class="form-check-input" type="checkbox" name="initialConfirmed" value="1" data-opening-balance-target="confirmed" required disabled>
+                            <span class="form-check-label">Je valide le solde initial</span>
+                        </label>
+                    </section>
+                {% elseif not id %}
+                    <p class="muted mb-0">Pour créditer les congés payés à la création, sélectionnez un compteur actif dans les Paramètres.</p>
+                {% endif %}
+                <div class="form-grid">
+                    <label class="field">Rôle<select name="role" class="form-select"><option value="ROLE_USER">Collaborateur</option><option value="ROLE_ADMIN" {{ row.role|default('') == 'ROLE_ADMIN' ? 'selected' }}>Administration</option></select></label>
+                    <label class="field">Statut<select name="state" class="form-select"><option value="active">Actif</option><option value="inactive" {{ row and not row.active and not row.archived ? 'selected' }}>Inactif</option><option value="archived" {{ row.archived|default(false) ? 'selected' }}>Archivé</option></select></label>
+                </div>
+                {% if not id %}{{ ui.passwordField('Mot de passe initial', 'password', '12 caractères minimum', 'le mot de passe') }}{% endif %}
+            </div>
+        {% elseif action == 'profil' %}
+            <label class="field">Téléphone<input class="form-control" name="phone" type="tel" maxlength="40" value="{{ row.phone }}" placeholder="Ex. 06 12 34 56 78" autocomplete="tel"></label>
+        {% elseif action == 'regle-conges' %}
+            <div class="form-stack">
+                <label class="field">Compteur à créditer
+                    <select class="form-select" name="counter">
+                        <option value="">Choisir un compteur actif</option>
+                        {% for counter in counters %}<option value="{{ counter.id }}" {{ counter.id == rule.counter_type_id ? 'selected' }}>{{ counter.name }}</option>{% endfor %}
+                    </select>
+                </label>
+                <div class="form-grid">
+                    <label class="field">Jours acquis par mois
+                        <input class="form-control" type="number" name="monthlyDays" min="0.5" max="31" step="0.5" value="{{ rule.monthly_units / 2 }}" required>
+                    </label>
+                    <label class="field">Mois avant disponibilité
+                        <input class="form-control" type="number" name="waitingMonths" min="0" max="120" step="1" value="{{ rule.waiting_months }}" required>
+                    </label>
+                </div>
+                <p class="muted mb-0">Le calcul utilise les mois calendaires complets depuis la date d’embauche. Les jours acquis sont disponibles à la fin du délai choisi.</p>
+                <label class="form-check">
+                    <input class="form-check-input" type="checkbox" name="automatic" value="1" {{ rule.automatic ? 'checked' }}>
+                    <span class="form-check-label">Créditer automatiquement les congés payés</span>
+                </label>
+            </div>
+        {% elseif action == 'horaire' %}
+            <fieldset>
+                <legend class="field mb-1">Jours travaillés</legend>
+                <p class="muted" id="schedule-help">Ces jours s’appliquent à toute l’entreprise et servent à calculer les nouvelles demandes d’absence.</p>
+                <div class="form-grid" aria-describedby="schedule-help">
+                    {% for day in ['Lundi','Mardi','Mercredi','Jeudi','Vendredi','Samedi','Dimanche'] %}
+                        <label class="form-check"><input class="form-check-input" type="checkbox" name="days[]" value="{{ loop.index0 }}" {{ (row.days b-and [1,2,4,8,16,32,64][loop.index0]) ? 'checked' }}><span class="form-check-label">{{ day }}</span></label>
+                    {% endfor %}
+                </div>
+            </fieldset>
+        {% else %}
+            <div class="form-stack">
+                {% set examples = {'service':'Ex. Logistique', 'type':'Ex. Congé exceptionnel', 'compteur':'Ex. Récupération', 'ferie':'Ex. Jour de l’An'} %}
+                <label class="field">Nom<input class="form-control" name="name" maxlength="100" value="{{ row.name ?? '' }}" placeholder="{{ examples[action] }}" required></label>
+                {% if action in ['service','type'] %}
+                    <label class="field">Description
+                        <textarea class="form-control" name="description" rows="2" maxlength="255" placeholder="{{ action == 'service' ? 'Décrivez le rôle de ce service' : 'Précisez quand utiliser ce type d’absence' }}">{{ row.description ?? '' }}</textarea>
+                    </label>
+                {% endif %}
+                {% if action in ['service','compteur'] %}<label class="field">Couleur<input type="color" class="form-control form-control-color" name="color" value="{{ row.color ?? '#137b66' }}"></label>{% endif %}
+                {% if action in ['type','service','compteur'] %}<label class="form-check"><input class="form-check-input" type="checkbox" name="active" value="1" {{ row.active ?? true ? 'checked' }}> <span class="form-check-label">Actif</span></label>{% endif %}
+                {% if action == 'type' %}
+                    <div class="form-grid"><label class="field">Couleur<select class="form-select" name="tone">{% for tone, color in {'mint':'Vert','violet':'Violet','coral':'Corail','amber':'Ambre','blue':'Bleu'} %}<option value="{{ tone }}" {{ row.tone|default('mint') == tone ? 'selected' }}>{{ color }}</option>{% endfor %}</select></label><label class="field">Compteur associé<select class="form-select" name="counter"><option value="">Aucun</option>{% for counter in counters %}<option value="{{ counter.id }}" {{ row.counter_type_id|default(0) == counter.id ? 'selected' }}>{{ counter.name }}</option>{% endfor %}</select></label></div>
+                    {% set attachmentPolicy = (row.requires_attachment ?? false) ? 'required' : ((row.allow_attachment ?? true) ? 'optional' : 'none') %}
+                    <label class="field">Justificatif
+                        <select class="form-select" name="attachmentPolicy" required>
+                            <option value="none" {{ attachmentPolicy == 'none' ? 'selected' }}>Non autorisé</option>
+                            <option value="optional" {{ attachmentPolicy == 'optional' ? 'selected' }}>Facultatif</option>
+                            <option value="required" {{ attachmentPolicy == 'required' ? 'selected' }}>Obligatoire</option>
+                        </select>
+                    </label>
+                    {% for name, setting in {'approval':['requires_approval','Validation requise',true], 'halfDays':['allow_half_days','Demi-journées autorisées',true], 'visible':['employee_visible','Disponible aux collaborateurs',true], 'private':['private_reason','Motif confidentiel',false]} %}
+                        <label class="form-check"><input class="form-check-input" type="checkbox" name="{{ name }}" value="1" {{ (row[setting[0]] ?? setting[2]) ? 'checked' }}><span class="form-check-label">{{ setting[1] }}</span></label>
+                    {% endfor %}
+                {% elseif action == 'ferie' %}
+                    <label class="field">Date<input class="form-control" type="date" name="day" value="{{ row.day ?? '' }}" required></label>
+                {% endif %}
+            </div>
+        {% endif %}
+        </div>
+        </div>
+    </div>
+    <div class="modal-footer">
+        <div class="{{ frame }} modal-actions">
+        <button type="button" class="btn btn-outline-tempo" data-bs-dismiss="modal">{{ inventoryCancellation ? 'Retour' : (action in ['vider-bdd-ebp', 'terminer-reste-inventaire'] ? 'Annuler' : 'Fermer') }}</button>
+        {% if action == 'demande' %}
+            {% if admin and row.status == 'pending' %}
+                <button class="btn btn-outline-danger" type="submit" name="transition" value="refuse">Refuser</button><button class="btn btn-tempo" type="submit" name="transition" value="approve">Accepter</button>
+            {% elseif (admin and row.status == 'approved') or (not admin and row.status == 'pending') %}
+                <button class="btn btn-outline-danger" type="submit" name="transition" value="cancel" data-confirm="Annuler cette demande ?">Annuler la demande</button>
+            {% endif %}
+        {% elseif action == 'notifications' %}
+            {% if rows|filter(item => not item.read_at)|length %}<button class="btn btn-tempo" type="submit">Tout marquer comme lu</button>{% endif %}
+        {% elseif action == 'mot-de-passe-collaborateur' %}
+            <button class="btn btn-tempo" type="submit">Réinitialiser</button>
+        {% elseif action == 'vider-bdd-ebp' %}
+            <button class="btn btn-danger" type="submit"><i class="bi bi-trash" aria-hidden="true"></i> Vider la BDD</button>
+        {% elseif action == 'assigner-inventaire' %}
+            <button class="btn btn-outline-tempo" type="button" data-inventory-wizard-target="back" data-action="inventory-wizard#back" hidden>Précédent</button>
+            <button class="btn btn-tempo" type="button" data-inventory-wizard-target="next" data-action="inventory-wizard#next" disabled>Suivant</button>
+            <button class="btn btn-tempo" type="submit" data-inventory-wizard-target="confirm" hidden>Confirmer l’affectation</button>
+        {% elseif action in ['cloturer-affectation', 'cloturer-inventaire'] %}
+            <button class="btn btn-tempo" type="submit">Confirmer la clôture</button>
+        {% elseif action == 'rouvrir-affectation' %}
+            {% if assignment.closed_at and not assignment.campaign_closed %}<button class="btn btn-tempo" type="submit">Confirmer la réouverture</button>{% endif %}
+        {% elseif action == 'terminer-reste-inventaire' %}
+            {% if zeroPreview.remaining %}<button class="btn btn-tempo" type="submit">Confirmer la mise à zéro</button>{% endif %}
+        {% elseif inventoryCancellation %}
+            {% if action == 'annuler-affectation-inventaire' or not campaign.closed_at %}
+                <button class="btn btn-danger" type="submit">Confirmer l’annulation</button>
+            {% endif %}
+        {% elseif action not in ['fiche-collaborateur', 'article-ebp'] %}
+            <button class="btn btn-tempo" type="submit">{{ action == 'nouvelle' ? 'Envoyer la demande' : 'Enregistrer' }}</button>
+        {% endif %}
+        {% if action in ['ferie', 'compteur'] and id %}
+            {% set confirmation = action == 'ferie'
+                ? 'Supprimer le jour férié « ' ~ row.name ~ ' » du ' ~ tempo_date(row.day, 'd MMM yyyy') ~ ' ?'
+                : 'Supprimer le compteur « ' ~ row.name ~ ' » ? Les nouvelles demandes des types d’absence liés seront suivies sans compteur. Les soldes et l’historique enregistrés seront conservés.' %}
+            <button class="btn btn-outline-danger order-first me-auto" type="submit" name="operation" value="delete" formnovalidate
+                    data-confirm="{{ confirmation }}">
+                <i class="bi bi-trash" aria-hidden="true"></i> Supprimer
+            </button>
+        {% endif %}
+        </div>
+    </div>
+</form>

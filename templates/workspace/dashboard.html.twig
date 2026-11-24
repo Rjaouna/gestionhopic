@@ -1,0 +1,67 @@
+{% import 'workspace/_components.html.twig' as ui %}
+<div class="page-heading">
+    <div><h1>Tableau de bord</h1><p>Suivez les absences et les congés de vos équipes.</p></div>
+    <div class="heading-actions"><span class="date-chip"><i class="bi bi-calendar3" aria-hidden="true"></i>{{ tempo_date(today, 'd MMMM yyyy') }}</span>{{ ui.action('Nouvelle demande', 'nouvelle') }}</div>
+</div>
+
+<section class="welcome-banner" aria-labelledby="welcome-title">
+    <div class="welcome-copy">
+        <span class="welcome-label"><i class="bi bi-sun" aria-hidden="true"></i>{{ tempo_date(today, 'EEEE')|capitalize }}</span>
+        <h2 id="welcome-title">Bonjour, {{ user.firstName }}<span class="greeting-period">.</span></h2>
+        <p>{% if peopleToday %}{{ peopleToday }} {{ peopleToday == 1 ? 'personne est absente' : 'personnes sont absentes' }} aujourd’hui.{% else %}Aucune absence enregistrée aujourd’hui.{% endif %}</p>
+    </div>
+    <div class="banner-art" aria-hidden="true">
+        <span class="banner-orbit orbit-one"></span><span class="banner-orbit orbit-two"></span><span class="banner-orbit orbit-three"></span>
+        <div class="art-calendar"><div class="art-calendar-head"><span></span><span></span></div><div class="art-calendar-days">{% for day in 1..12 %}<span class="{{ day in [4, 7, 8, 9] ? 'art-day-active' }}"></span>{% endfor %}</div></div>
+        <div class="art-check"><i class="bi bi-check-lg"></i></div><span class="art-spark"><i class="bi bi-stars"></i></span>
+    </div>
+    <a class="banner-link" data-nav href="{{ path('admin_section', {section:'planning'}) }}"><i class="bi bi-calendar2-week" aria-hidden="true"></i><span>Voir le planning</span><i class="bi bi-chevron-right" aria-hidden="true"></i></a>
+</section>
+
+<section class="metric-grid" aria-label="Indicateurs du jour">
+    {% set metrics = [
+        ['Collaborateurs actifs', active, departmentsCount ~ (departmentsCount == 1 ? ' service' : ' services'), 'people', 'mint', path('admin_section', {section:'collaborateurs'})],
+        ['Absents aujourd’hui', peopleToday, 'Absences confirmées', 'person-dash', 'coral', path('admin_section', {section:'planning'})],
+        ['Demandes en attente', pending, 'À traiter', 'inbox', 'amber', path('admin_section', {section:'demandes', statut:'pending'})],
+        ['Couverture du jour', coverage is null ? '—' : coverage ~ ' %', planned ~ ' planifiés sans absence', 'calendar2-check', 'violet', path('admin_section', {section:'planning'})]
+    ] %}
+    {% for metric in metrics %}
+        <a class="card metric-card" href="{{ metric[5] }}" data-nav>
+            <div class="metric-heading"><span class="metric-icon tone-{{ metric[4] }}"><i class="bi bi-{{ metric[3] }}" aria-hidden="true"></i></span><i class="bi bi-arrow-up-right metric-arrow" aria-hidden="true"></i></div>
+            <div class="metric-label">{{ metric[0] }}</div><strong class="metric-value">{{ metric[1] }}</strong><span class="metric-note">{{ metric[2] }}</span>
+        </a>
+    {% endfor %}
+</section>
+
+<div class="dashboard-columns">
+    <section class="card chart-card" aria-labelledby="chart-title">
+        <header class="card-heading"><div><h2 id="chart-title">Évolution des absences</h2><p>Jours d’absence acceptés par mois</p></div>
+            <form method="get" action="{{ path('admin_dashboard') }}" data-filter data-auto-filter>
+                {% if department %}<input type="hidden" name="service" value="{{ department }}">{% endif %}
+                <select name="periode" class="form-select chart-select" aria-label="Période du graphique"><option value="6" {{ months == 6 ? 'selected' }}>6 derniers mois</option><option value="3" {{ months == 3 ? 'selected' }}>3 derniers mois</option></select>
+            </form>
+        </header>
+        <div class="chart-legend">{% for tone, label in legend %}<span><i class="chart-dot chart-{{ tone }}" aria-hidden="true"></i>{{ label }}</span>{% endfor %}</div>
+        <div class="chart-body"><canvas data-chart="{{ chart|json_encode }}" role="img" aria-label="Jours d’absence acceptés, par mois et par type"></canvas></div>
+        <details class="chart-data"><summary>Données du graphique</summary><div class="table-responsive"><table class="table table-sm mb-0"><thead><tr><th>Mois</th>{% for label in legend %}<th>{{ label }}</th>{% endfor %}</tr></thead><tbody>{% for month in chart %}<tr><th>{{ month.label|capitalize }}</th><td>{{ month.mint }}</td><td>{{ month.violet }}</td><td>{{ month.amber }}</td></tr>{% endfor %}</tbody></table></div></details>
+    </section>
+    <section class="card absence-card" aria-labelledby="absence-title">
+        <header class="card-heading"><div><h2 id="absence-title">Absents aujourd’hui</h2><p>{{ tempo_date(today, 'EEEE d MMMM')|capitalize }}</p></div><span class="card-count">{{ peopleToday }}</span></header>
+        {% if todayRows %}
+            <ul class="absence-list list-unstyled">
+                {% for row in todayRows|slice(0, 4) %}
+                    <li class="absence-row">
+                        <div class="person-cell">{{ ui.avatar(row, row.tone) }}<span><strong>{{ ui.employeeName(row, row.employee_id) }}</strong><small>{{ ui.departmentLink(row.department, row.department_id) }}</small></span></div>
+                        {{ ui.kind(row, true) }}
+                    </li>
+                {% endfor %}
+            </ul>
+        {% else %}{{ ui.empty('Aucun collaborateur absent aujourd’hui.', 'calendar2-check') }}{% endif %}
+        <a class="card-footer-link" data-nav href="{{ path('admin_section', {section:'planning'}) }}">Consulter le planning <i class="bi bi-chevron-right" aria-hidden="true"></i></a>
+    </section>
+</div>
+
+<section class="card requests-card" aria-labelledby="recent-title">
+    <header class="card-heading"><div><h2 id="recent-title">Demandes récentes</h2><p>Dernières demandes de vos collaborateurs</p></div><a class="btn btn-outline-tempo" data-nav href="{{ path('admin_section', {section:'demandes'}) }}">Toutes les demandes</a></header>
+    {% include 'workspace/_requests.html.twig' with {rows: recent} %}
+</section>

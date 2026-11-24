@@ -1,0 +1,118 @@
+{% import 'workspace/_components.html.twig' as ui %}
+{% import 'inventory/_components.html.twig' as inventory %}
+{% set route = admin ? 'admin_inventory' : 'employee_section' %}
+<div class="page-heading">
+    <div>
+        <h1>{{ assignment ? assignment.name : titles[section] }}</h1>
+        {% if assignment %}
+            <div class="inventory-meta">{{ inventory.responsibility(assignment, admin) }}{{ inventory.scopeBadges(assignment) }}{{ inventory.articleBadge(assignmentStats.total) }}</div>
+        {% else %}
+            <p>{{ admin ? 'Consultez les affectations et reprenez un comptage si nécessaire.' : 'Retrouvez les articles qui vous ont été confiés pour le comptage.' }}</p>
+        {% endif %}
+    </div>
+    {% if assignment %}<a class="btn btn-outline-tempo" data-nav href="{{ path(route, {section:section}) }}"><i class="bi bi-arrow-left" aria-hidden="true"></i> {{ titles[section] }}</a>{% endif %}
+</div>
+{% if not assignment %}
+    {% if admin %}
+        <form class="card filters-bar inventory-filters" method="get" action="{{ path(route, {section:section}) }}" data-filter>
+            <label class="search-control"><i class="bi bi-search" aria-hidden="true"></i><input class="form-control" name="q" aria-label="Rechercher un inventaire" maxlength="160" placeholder="Inventaire, collaborateur, catégorie, marque…" value="{{ search }}" data-live-search></label>
+        </form>
+    {% endif %}
+    <div data-controller="{{ admin ? 'inventory-live' : 'inventory-deadline' }}">
+    <div id="inventory-assignment-list" {% if admin %}data-inventory-live-target="content"{% endif %}>
+    {% if assignments %}
+        <div class="inventory-assignment-list">
+            {% for job in assignments %}
+                {% set countdown = not admin and job.reopen_seconds > 0 %}
+                <article class="card inventory-entry" {% if countdown %}data-inventory-expiring{% endif %}>
+                    <span class="metric-icon tone-mint"><i class="bi bi-clipboard-check" aria-hidden="true"></i></span>
+                    <div>
+                        <h2>{{ job.name }}</h2>
+                        <div class="inventory-meta">{{ inventory.responsibility(job, admin) }}{{ inventory.scopeBadges(job) }}{{ inventory.articleBadge(job.total) }}</div>
+                        <p class="mt-2">{{ job.finished|number_format(0, ',', ' ') }} / {{ job.total|number_format(0, ',', ' ') }} terminés</p>
+                    </div>
+                    <div class="heading-actions">
+                        {{ inventory.assignmentStatus(job) }}
+                        {% if countdown %}{{ inventory.countdown(job.reopen_seconds) }}{% endif %}
+                        {% if admin and job.closed_at and not job.campaign_closed %}
+                            <button class="btn btn-outline-tempo" type="button" data-modal-url="{{ path('workspace_action', {action:'rouvrir-affectation', id:job.id}) }}"><i class="bi bi-arrow-counterclockwise" aria-hidden="true"></i> Rouvrir</button>
+                        {% endif %}
+                        <a class="btn btn-outline-tempo" data-nav href="{{ path(route, {section:section, affectation:job.id}) }}">{{ admin and not job.closed_at and not job.campaign_closed ? 'Traiter' : 'Ouvrir' }} <i class="bi bi-chevron-right" aria-hidden="true"></i></a>
+                    </div>
+                </article>
+            {% endfor %}
+        </div>
+        {% include 'workspace/_pagination.html.twig' with {paginationLabel:'Pagination de la liste des inventaires'} %}
+    {% else %}
+        <section class="card">{{ ui.empty(search ? 'Aucun inventaire ne correspond à la recherche.' : (admin ? 'Aucun inventaire n’a été assigné.' : 'Aucun inventaire ne vous est attribué.'), 'clipboard-check') }}</section>
+    {% endif %}
+    </div>
+    </div>
+{% else %}
+    {% set editable = not assignment.closed_at and not assignment.campaign_closed %}
+    {% set countdown = not admin and not editable and assignment.reopen_seconds > 0 %}
+    <div {% if editable %}data-controller="inventory-count" data-inventory-count-token-value="{{ csrf_token((admin ? 'inventory-admin-count-' : 'inventory-count-') ~ assignment.id) }}" data-inventory-count-remaining-value="{{ assignmentStats.remaining }}"
+         {% elseif countdown %}data-controller="inventory-deadline" data-inventory-expiring data-inventory-deadline-location-value="{{ path(route, {section:section}) }}"{% endif %}>
+        <section class="card inventory-campaign-card" aria-labelledby="my-inventory-progress">
+            <header class="card-heading">
+                <div><h2 id="my-inventory-progress">{{ editable ? (admin ? 'Comptage de l’affectation' : 'Votre comptage') : 'Comptage clôturé' }}</h2>
+                    <p><strong data-inventory-count-target="finished">{{ assignmentStats.finished }}</strong> sur {{ assignmentStats.total }} articles terminés</p>
+                </div>
+                {% if editable %}
+                    <button class="btn btn-tempo" type="button" data-inventory-count-target="close" {{ assignmentStats.remaining ? 'disabled' }}
+                            data-modal-url="{{ path('workspace_action', {action:'cloturer-affectation', id:assignment.id}) }}"><i class="bi bi-check2-circle" aria-hidden="true"></i> {{ admin ? 'Clôturer l’affectation' : 'Clôturer mon inventaire' }}</button>
+                {% elseif not assignment.campaign_closed %}
+                    <button class="btn btn-outline-tempo" type="button" aria-haspopup="dialog"
+                            data-modal-url="{{ path('workspace_action', {action:'rouvrir-affectation', id:assignment.id}) }}"><i class="bi bi-arrow-counterclockwise" aria-hidden="true"></i> {{ admin ? 'Rouvrir l’affectation' : 'Rouvrir mon inventaire' }}</button>
+                {% endif %}
+            </header>
+            <div class="inventory-campaign-progress">
+                <progress class="inventory-progress" max="{{ max(1, assignmentStats.total) }}" value="{{ assignmentStats.finished }}" aria-label="Articles terminés" data-inventory-count-target="progress"></progress>
+                {% if editable %}<p class="muted mb-0" data-inventory-count-target="instructions">{{ assignmentStats.remaining ? 'Saisissez le nombre compté, puis terminez chaque article.' : 'Tous les articles sont terminés. Vous pouvez clôturer votre inventaire.' }}</p>{% endif %}
+                {% if countdown %}<div>{{ inventory.countdown(assignment.reopen_seconds) }}</div>{% endif %}
+            </div>
+        </section>
+        <form class="card filters-bar inventory-filters" method="get" action="{{ path(route, {section:section}) }}" data-filter>
+            <input type="hidden" name="affectation" value="{{ assignment.id }}">
+            <label class="search-control"><i class="bi bi-search" aria-hidden="true"></i>
+                <input class="form-control" name="q" aria-label="Rechercher un article" maxlength="160" placeholder="Ex. Amortisseur, référence, OEM…" value="{{ search }}" data-live-search>
+            </label>
+            {% if editable %}
+                <button class="btn btn-outline-tempo inventory-zero-button" type="button" data-inventory-count-target="zero"
+                        data-modal-url="{{ path('workspace_action', {action:'terminer-reste-inventaire', id:assignment.id}) }}" {{ assignmentStats.remaining == 0 ? 'hidden' }}>
+                    <i class="bi bi-list-check" aria-hidden="true"></i> Terminer le reste à 0
+                </button>
+            {% endif %}
+        </form>
+        {% if inventoryLines %}
+            <div class="inventory-count-list">
+                {% for row in inventoryLines %}
+                    {% set state = row.completed ? 'done' : (row.counted_quantity is not null ? 'counting' : 'pending') %}
+                    <article class="card inventory-count-row" data-count-state="{{ state }}">
+                        <div class="inventory-item">
+                            <span class="inventory-item-photo"><i class="bi bi-box-seam" aria-hidden="true"></i>{% if row.photo %}<img src="{{ row.photo }}" alt="" loading="lazy" referrerpolicy="no-referrer" data-inventory-photo>{% endif %}</span>
+                            <div class="inventory-item-name"><strong>{{ row.description ?: row.reference }}</strong><small>{{ row.reference }}{% if row.brand %} · {{ row.brand }}{% endif %}{% if row.category %} · {{ row.category }}{% endif %}</small></div>
+                        </div>
+                        {% if editable %}
+                            <form class="inventory-count-form" method="post" action="{{ path(admin ? 'admin_inventory_save_count' : 'inventory_save_count', {assignment:assignment.id, line:row.id}) }}"
+                                  data-action="submit->inventory-count#finish" data-version="{{ row.version }}">
+                                <label class="field" for="count-line-{{ row.id }}">Qté comptée
+                                    <input class="form-control" id="count-line-{{ row.id }}" name="quantity" type="text" inputmode="decimal" placeholder="Ex. 0"
+                                           value="{{ row.counted_quantity is not null ? inventory.quantity(row.counted_quantity) : '' }}" maxlength="19"
+                                           pattern="[0-9]{1,12}([.,][0-9]{1,6})?" required data-action="input->inventory-count#queue change->inventory-count#flush">
+                                </label>
+                                <button class="btn btn-outline-tempo" type="submit" {{ row.completed ? 'disabled' }}><i class="bi bi-check2" aria-hidden="true"></i> Terminer l’article</button>
+                                <p class="inventory-count-note mb-0" aria-live="polite" data-count-result>{{ row.completed ? 'Terminé' : (row.counted_quantity is not null ? 'En cours' : 'À compter') }}</p>
+                            </form>
+                        {% else %}
+                            <span class="inventory-quantity tone-mint" aria-label="Quantité inventoriée">{{ inventory.quantity(row.counted_quantity) }}</span>
+                        {% endif %}
+                    </article>
+                {% endfor %}
+            </div>
+            {% include 'workspace/_pagination.html.twig' with {paginationLabel:'Pagination des articles à inventorier', paginationParams:{affectation:assignment.id}} %}
+        {% else %}
+            <section class="card">{{ ui.empty('Aucun article ne correspond à la recherche.', 'search') }}</section>
+        {% endif %}
+    </div>
+{% endif %}

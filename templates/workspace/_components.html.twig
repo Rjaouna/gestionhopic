@@ -1,0 +1,125 @@
+{% macro avatar(row, tone = '') %}
+    <span class="avatar tone-{{ tone ?: ['mint','violet','blue','amber','coral'][row.id % 5] }}" aria-hidden="true">{{ initials(row.first_name, row.last_name) }}</span>
+{% endmacro %}
+{% macro status(status) %}
+    {% set labels = {'pending': ['En attente', 'amber'], 'approved': ['Acceptée', 'mint'], 'refused': ['Refusée', 'coral'], 'cancelled': ['Annulée', 'neutral']} %}
+    {% set entry = labels[status] ?? [status, 'neutral'] %}
+    <span class="status-badge tone-{{ entry[1] }}"><span></span>{{ entry[0] }}</span>
+{% endmacro %}
+{% macro kind(row, linked = false) %}
+    {% if linked %}
+        <button type="button" class="kind-badge tone-{{ row.tone }} record-badge" aria-haspopup="dialog" title="Voir la demande"
+                data-modal-url="{{ path('workspace_action', {action:'demande', id:row.id}) }}">
+            <i class="bi bi-{{ row.icon }}" aria-hidden="true"></i><span class="record-underline">{{ row.type }}</span>
+        </button>
+    {% else %}
+        <span class="kind-badge tone-{{ row.tone }}"><i class="bi bi-{{ row.icon }}" aria-hidden="true"></i>{{ row.type }}</span>
+    {% endif %}
+{% endmacro %}
+{% macro recordLink(text, action, id, title) %}
+    <button type="button" class="record-link record-underline" aria-haspopup="dialog" title="{{ title }}"
+            data-modal-url="{{ path('workspace_action', {action:action, id:id}) }}">{{ text }}</button>
+{% endmacro %}
+{% macro employeeName(row, employeeId, admin = true) %}
+    {% set name = row.first_name ~ ' ' ~ row.last_name %}
+    {% if admin %}
+        {{ _self.recordLink(name, 'fiche-collaborateur', employeeId, 'Voir la fiche de ' ~ name) }}
+    {% else %}
+        <a class="record-link record-underline" data-nav href="{{ path('employee_section', {section:'profil'}) }}" title="Voir mon profil">{{ name }}</a>
+    {% endif %}
+{% endmacro %}
+{% macro departmentLink(name, departmentId, admin = true) %}
+    {% if admin and name and departmentId %}
+        <a class="record-link record-underline" data-nav href="{{ path('admin_section', {section:'collaborateurs', service:departmentId}) }}"
+           title="Voir les collaborateurs du service {{ name }}">{{ name }}</a>
+    {% else %}
+        {{ name ?: 'Sans service' }}
+    {% endif %}
+{% endmacro %}
+{% macro workdays(days) %}
+    {% set labels = {1:'Lundi', 2:'Mardi', 4:'Mercredi', 8:'Jeudi', 16:'Vendredi', 32:'Samedi', 64:'Dimanche'} %}
+    {{ labels|filter((day, flag) => (days b-and flag) != 0)|join(', ') }}
+{% endmacro %}
+{% macro action(text, label, icon = 'plus-lg', primary = true, id = 0) %}
+    <button type="button" class="btn {{ primary ? 'btn-tempo' : 'btn-outline-tempo' }}" data-modal-url="{{ path('workspace_action', {action: label, id: id}) }}"><i class="bi bi-{{ icon }}" aria-hidden="true"></i>{{ text }}</button>
+{% endmacro %}
+{% macro empty(text, icon = 'inbox') %}
+    <div class="empty"><span class="empty-icon"><i class="bi bi-{{ icon }}" aria-hidden="true"></i></span><p>{{ text }}</p></div>
+{% endmacro %}
+{% macro range(row) %}
+    {% if row.start_on == row.end_on %}{{ tempo_date(row.start_on, 'd MMM yyyy') }}{% else %}{{ tempo_date(row.start_on) }} – {{ tempo_date(row.end_on, 'd MMM') }}{% endif %}
+{% endmacro %}
+{% macro employeeStatus(row) %}
+    <span class="status-badge tone-{{ row.active ? 'mint' : 'neutral' }}">
+        <span></span>{{ row.archived ? 'Archivé' : (row.active ? 'Actif' : 'Inactif') }}
+    </span>
+{% endmacro %}
+{% macro employeePicker(id, people) %}
+    <div class="field employee-picker" data-controller="employee-picker"
+         data-action="click@document->employee-picker#closeOutside focusin@document->employee-picker#closeOutside keydown->employee-picker#navigate">
+        <label id="{{ id }}-label" for="{{ id }}" data-employee-picker-target="label">Collaborateur</label>
+        <select class="form-select" name="employee" id="{{ id }}" required data-employee-picker-target="select"
+                data-action="change->employee-picker#syncSelection invalid->employee-picker#showRequired">
+            <option value="">Choisir un collaborateur</option>
+            {% for person in people %}
+                <option value="{{ person.id }}" data-code="{{ person.code }}" data-department="{{ person.department }}">
+                    {{ person.first_name }} {{ person.last_name }}
+                </option>
+            {% endfor %}
+        </select>
+        <div data-employee-picker-target="enhanced" hidden>
+            <button class="form-select employee-picker-trigger" type="button" id="{{ id }}-trigger"
+                    aria-labelledby="{{ id }}-label {{ id }}-choice" aria-expanded="false"
+                    aria-controls="{{ id }}-panel" aria-describedby="{{ id }}-error"
+                    data-employee-picker-target="trigger" data-action="employee-picker#toggle">
+                <span id="{{ id }}-choice" data-employee-picker-target="choice"></span>
+            </button>
+            <p class="employee-picker-error" id="{{ id }}-error" data-employee-picker-target="error" hidden>
+                Sélectionnez un collaborateur.
+            </p>
+            <div class="employee-picker-panel" id="{{ id }}-panel" data-employee-picker-target="panel" hidden>
+                <div class="employee-picker-search">
+                    <i class="bi bi-search" aria-hidden="true"></i>
+                    <input class="form-control" type="search" role="combobox" aria-label="Rechercher un collaborateur"
+                           aria-expanded="false" aria-autocomplete="list" aria-controls="{{ id }}-results"
+                           placeholder="Nom ou matricule…" autocomplete="off" maxlength="160" spellcheck="false"
+                           data-employee-picker-target="search"
+                           data-action="input->employee-picker#searchInput change->employee-picker#searchInput">
+                    <button class="icon-button employee-picker-clear" type="button" aria-label="Effacer la sélection"
+                            title="Effacer la sélection" data-employee-picker-target="clear"
+                            data-action="employee-picker#clearSelection" hidden>
+                        <i class="bi bi-x-circle" aria-hidden="true"></i>
+                    </button>
+                </div>
+                <div class="employee-picker-results" id="{{ id }}-results" role="listbox" aria-labelledby="{{ id }}-label"
+                     data-employee-picker-target="results"
+                     data-action="mousedown->employee-picker#keepSearchFocus click->employee-picker#choose"></div>
+                <p class="employee-picker-status" role="status" data-employee-picker-target="status"></p>
+            </div>
+        </div>
+    </div>
+{% endmacro %}
+{% macro employeeOverview(row, subtitle) %}
+    <div class="employee-overview">
+        {{ _self.avatar(row) }}
+        <div class="employee-overview-name">
+            <strong>{{ row.first_name }} {{ row.last_name }}</strong>
+            <span>{{ subtitle }}</span>
+        </div>
+        {{ _self.employeeStatus(row) }}
+    </div>
+{% endmacro %}
+{% macro passwordField(label, name, placeholder, target) %}
+    <div class="field">
+        <label for="employee-{{ name }}">{{ label }}</label>
+        <div class="password-field">
+            <input class="form-control" id="employee-{{ name }}" name="{{ name }}" type="password"
+                   minlength="12" maxlength="72" autocomplete="new-password" placeholder="{{ placeholder }}" required>
+            <button class="icon-button password-toggle" type="button" data-password-toggle
+                    data-password-label="{{ target }}" aria-controls="employee-{{ name }}" aria-pressed="false"
+                    aria-label="Afficher {{ target }}" title="Afficher {{ target }}">
+                <i class="bi bi-eye" aria-hidden="true"></i>
+            </button>
+        </div>
+    </div>
+{% endmacro %}

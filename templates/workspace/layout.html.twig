@@ -1,0 +1,107 @@
+{% extends 'base.html.twig' %}
+{% import '_brand.html.twig' as brand %}
+{% block title %}{{ titles[section] }} · {{ identity.title }}{% endblock %}
+{% block scripts %}
+    <script defer src="{{ asset('vendor/bootstrap/bootstrap.bundle.min.js') }}"></script>
+    <script defer src="{{ asset('vendor/chart/chart.umd.js') }}"></script>
+    {{ parent() }}
+{% endblock %}
+{% block body_attributes %} class="{{ admin ? 'admin-layout' : 'employee-layout' }}"{% endblock %}
+{% block body %}
+<div class="app-shell" data-controller="workspace" data-action="inventory-deadline:expired->workspace#inventoryExpired">
+    <a class="skip-link" href="#contenu">Aller au contenu</a>
+    {% if admin %}
+    <aside class="sidebar offcanvas-lg offcanvas-start" tabindex="-1" id="navigation" aria-label="Navigation principale">
+        <div class="sidebar-top">
+            <a class="brand" data-live-brand data-nav href="{{ path('admin_dashboard') }}" aria-label="{{ identity.title }}" title="{{ identity.title }}">
+                {{ brand.logo(identity) }}{{ brand.word(identity) }}
+            </a>
+            <button class="icon-button sidebar-close d-lg-none" type="button" data-bs-dismiss="offcanvas" data-bs-target="#navigation" aria-label="Fermer le menu"><i class="bi bi-x-lg"></i></button>
+            <button class="icon-button sidebar-collapse d-none d-lg-grid" type="button" data-action="workspace#toggleSidebar" aria-label="Réduire le menu" title="Réduire le menu"><i class="bi bi-layout-sidebar-inset"></i></button>
+        </div>
+        <nav class="sidebar-nav">
+            {% set groups = {
+                'Espace de travail': [['dashboard', 'grid-1x2'], ['planning', 'calendar3'], ['demandes', 'inbox']],
+                'Gestion RH': [['collaborateurs', 'people'], ['services', 'diagram-3'], ['soldes', 'wallet2']],
+                'Gestion inventaire': [['articles-ebp', 'boxes'], ['connexion-bdd', 'database-gear'], ['assigner', 'clipboard-plus'], ['liste', 'clipboard-check'], ['etat', 'list-check']],
+                'Pilotage': [['rapports', 'bar-chart'], ['journal', 'clock-history'], ['parametres', 'gear'], ['personnalisation', 'palette2']]
+            } %}
+            {% for label, items in groups %}
+                <div class="nav-group">
+                    <p class="nav-caption">{{ label }}</p>
+                    {% for item in items %}
+                        {% set key = item[0] %}
+                        {% set route = key in ['articles-ebp', 'connexion-bdd', 'assigner', 'liste', 'etat'] ? 'admin_inventory' : 'admin_section' %}
+                        <a href="{{ key == 'dashboard' ? path('admin_dashboard') : path(route, {section: key}) }}" class="side-link {{ section == key ? 'is-active' }}" data-nav data-section="{{ key }}" title="{{ titles[key] }}" {% if section == key %}aria-current="page"{% endif %}>
+                            <i class="bi bi-{{ item[1] }}" aria-hidden="true"></i><span>{{ titles[key] }}</span>
+                            {% if key == 'demandes' %}<span class="nav-count" data-pending-count {% if not pendingCount %}hidden{% endif %}>{{ pendingCount }}</span>{% endif %}
+                        </a>
+                    {% endfor %}
+                </div>
+            {% endfor %}
+        </nav>
+        <div class="sidebar-footer">
+            <a class="side-link switch-space" href="{{ path('employee_dashboard') }}"><i class="bi bi-person-circle" aria-hidden="true"></i><span>Mon espace</span><i class="bi bi-box-arrow-up-right switch-arrow" aria-hidden="true"></i></a>
+            <a class="sidebar-footer-name record-link" href="{{ path('employee_section', {section:'profil'}) }}" aria-label="Mon profil" title="Voir mon profil"><span class="avatar tone-mint" aria-hidden="true">{{ user.initials }}</span><span class="company-text"><strong class="record-underline">{{ user.displayName }}</strong><small>Administration RH</small></span></a>
+        </div>
+    </aside>
+    {% endif %}
+    <div class="app-panel">
+        <header class="topbar">
+            <div class="topbar-start">
+                {% if admin %}
+                    <button type="button" class="icon-button mobile-menu d-lg-none" data-bs-toggle="offcanvas" data-bs-target="#navigation" aria-label="Ouvrir le menu"><i class="bi bi-list"></i></button>
+                    <div class="top-crumb"><i class="bi bi-house-door" aria-hidden="true"></i><span>Espace RH</span><i class="bi bi-chevron-right" aria-hidden="true"></i><strong data-current-title>{{ titles[section] }}</strong></div>
+                {% else %}
+                    <a class="brand employee-brand" data-live-brand data-nav href="{{ path('employee_dashboard') }}" aria-label="{{ identity.title }}" title="{{ identity.title }}">
+                        {{ brand.logo(identity) }}{{ brand.word(identity) }}
+                    </a>
+                    <nav class="employee-top-nav" aria-label="Navigation principale">
+                    {% for key in ['dashboard', 'demandes', 'planning', 'soldes', 'inventaires'] %}
+                        <a data-nav data-section="{{ key }}" class="{{ section == key ? 'is-active' }}" href="{{ key == 'dashboard' ? path('employee_dashboard') : path('employee_section', {section:key}) }}" {% if section == key %}aria-current="page"{% endif %}>{{ titles[key] }}</a>
+                    {% endfor %}
+                    </nav>
+                {% endif %}
+            </div>
+            <div class="topbar-actions">
+                {% if admin %}
+                    <form class="top-search d-none d-md-flex" method="get" action="{{ path('admin_section', {section:'collaborateurs'}) }}" data-filter role="search">
+                        <i class="bi bi-search" aria-hidden="true"></i><input name="q" aria-label="Rechercher un collaborateur" placeholder="Nom ou matricule…" value="{{ section == 'collaborateurs' ? search : '' }}"><kbd>↵</kbd>
+                    </form>
+                {% endif %}
+                <button type="button" class="icon-button notification-button" data-modal-url="{{ path('workspace_action', {action:'notifications'}) }}" aria-label="Notifications" title="Notifications"><i class="bi bi-bell"></i><span class="notification-dot" data-unread-dot {% if not unread %}hidden{% endif %}></span></button>
+                <div class="topbar-divider" aria-hidden="true"></div>
+                <div class="dropdown">
+                    <button class="profile-button" type="button" data-bs-toggle="dropdown" aria-expanded="false" aria-label="Menu de {{ user.displayName }}">
+                        <span class="avatar profile-avatar">{{ user.initials }}</span><span class="topbar-name">{{ user.displayName }}</span><i class="bi bi-chevron-down"></i>
+                    </button>
+                    <ul class="dropdown-menu dropdown-menu-end shadow-sm">
+                        <li><a class="dropdown-item" href="{{ path('employee_section', {section:'profil'}) }}">Mon profil</a></li>
+                        {% if not admin and is_granted('ROLE_ADMIN') %}<li><a class="dropdown-item" href="{{ path('admin_dashboard') }}">Espace RH</a></li>{% endif %}
+                        <li><hr class="dropdown-divider"></li>
+                        <li><form method="post" action="{{ path('app_logout') }}"><input type="hidden" name="_csrf_token" value="{{ csrf_token('logout') }}"><button type="submit" class="dropdown-item">Se déconnecter</button></form></li>
+                    </ul>
+                </div>
+            </div>
+        </header>
+        <main id="contenu" class="main-content" tabindex="-1">
+            {% include 'workspace/content.html.twig' %}
+        </main>
+    </div>
+    {% if not admin %}
+        <nav class="employee-mobile-nav" aria-label="Navigation mobile">
+            <a data-nav data-section="dashboard" class="{{ section == 'dashboard' ? 'is-active' }}" href="{{ path('employee_dashboard') }}"><i class="bi bi-house-door"></i><span>Accueil</span></a>
+            <a data-nav data-section="demandes" class="{{ section == 'demandes' ? 'is-active' }}" href="{{ path('employee_section', {section:'demandes'}) }}"><i class="bi bi-inbox"></i><span>Demandes</span></a>
+            <button type="button" data-modal-url="{{ path('workspace_action', {action:'nouvelle'}) }}" aria-label="Nouvelle demande"><span class="nav-plus"><i class="bi bi-plus-lg"></i></span><span>Nouvelle</span></button>
+            <a data-nav data-section="planning" class="{{ section == 'planning' ? 'is-active' }}" href="{{ path('employee_section', {section:'planning'}) }}"><i class="bi bi-calendar3"></i><span>Calendrier</span></a>
+            <a data-nav data-section="inventaires" class="{{ section == 'inventaires' ? 'is-active' }}" href="{{ path('employee_section', {section:'inventaires'}) }}"><i class="bi bi-clipboard-check"></i><span>Inventaire</span></a>
+            <a data-nav data-section="profil" class="{{ section == 'profil' ? 'is-active' }}" href="{{ path('employee_section', {section:'profil'}) }}"><i class="bi bi-person-circle"></i><span>Compte</span></a>
+        </nav>
+    {% endif %}
+    <div class="modal workspace-dialog" id="workspace-modal" tabindex="-1" aria-labelledby="workspace-modal-title" aria-hidden="true">
+        <div class="modal-dialog modal-fullscreen"><div class="modal-content" data-modal-content></div></div>
+    </div>
+    <div class="toast-container position-fixed bottom-0 end-0 p-3" data-toasts aria-live="polite"></div>
+    <div class="visually-hidden" role="status" data-page-status></div>
+</div>
+{% endblock %}

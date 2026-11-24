@@ -1,0 +1,17 @@
+{% set labels = {
+    Id:'Référence EBP', UniqueId:'Identifiant unique EBP', DesComClear:'Désignation', RealStock:'Quantité EBP',
+    xx_correspondance:'Correspondances', xx_OEM:'Référence OEM', SalePriceVatIncluded:'Prix de vente TTC',
+    SalePriceVatExcluded:'Prix de vente HT', xx_Annee:'Année', xx_Vehicule:'Véhicule',
+    xx_Marque:'Marque', sysModifiedDate:'Dernière modification EBP', xx_code_web:'Code web',
+    sysCreatedDate:'Création EBP', FamilyName:'Catégorie', ExportStartedAt:'Début de l’export', FtpFinishedAt:'Fin du transfert'
+} %}
+<div class="inventory-article-heading">
+    <span class="inventory-item-photo"><i class="bi bi-box-seam" aria-hidden="true"></i>{% if row.photo %}<img src="{{ row.photo }}" alt="" referrerpolicy="no-referrer" data-inventory-photo>{% endif %}</span>
+    <div><h3>{{ row.description ?: row.reference }}</h3><p class="muted mb-0">{{ row.reference }}{% if row.brand %} · {{ row.brand }}{% endif %}</p></div>
+</div>
+<dl class="employee-facts inventory-source-fields">
+    <div><dt>Quantité inventoriée</dt><dd>{{ row.counted_quantity|replace({'.':','}) }}</dd></div>
+    {% for key, value in row.fields %}
+        <div><dt>{{ labels[key] ?? key }}</dt><dd>{{ value != '' ? value : '—' }}</dd></div>
+    {% endfor %}
+</dl>

@@ -1,0 +1,13 @@
+{% macro logo(appearance) %}
+    <span class="brand-mark {{ appearance.logoUrl ? 'has-logo' }}" data-brand-mark aria-hidden="true">
+        <img data-brand-logo {% if appearance.logoUrl %}src="{{ appearance.logoUrl }}"{% else %}hidden{% endif %} alt="">
+        <i class="bi bi-calendar2-check" data-brand-default {% if appearance.logoUrl %}hidden{% endif %}></i>
+    </span>
+{% endmacro %}
+
+{% macro word(appearance) %}
+    <span class="brand-word">
+        <span class="brand-name" data-brand-name>{{ appearance.name }}</span>
+        <span class="brand-suffix" data-brand-suffix {% if not appearance.suffix %}hidden{% endif %}>{{ appearance.suffix }}</span>
+    </span>
+{% endmacro %}

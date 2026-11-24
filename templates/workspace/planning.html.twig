@@ -1,0 +1,49 @@
+{% import 'workspace/_components.html.twig' as ui %}
+{% set route = admin ? 'admin_section' : 'employee_section' %}
+{% set params = {section:'planning', service:department ?: null, type:type ?: null, q:search ?: null, page:pagination.page > 1 ? pagination.page : null} %}
+<div class="page-heading">
+    <div><h1>{{ titles[section] }}</h1><p>{{ admin ? 'Visualisez les absences et les congés par équipe.' : 'Retrouvez vos absences et congés semaine par semaine.' }}</p></div>
+    <div class="heading-actions">{{ ui.action('Nouvelle demande', 'nouvelle') }}</div>
+</div>
+<section class="card planning-card" aria-label="Calendrier des absences">
+    <div class="planning-toolbar">
+        <div class="week-controls">
+            <a class="icon-button btn-outline-tempo" data-nav href="{{ path(route, params|merge({semaine: week|date_modify('-7 days')|date('Y-m-d')})) }}" aria-label="Semaine précédente"><i class="bi bi-chevron-left"></i></a>
+            <a class="icon-button btn-outline-tempo" data-nav href="{{ path(route, params|merge({semaine: week|date_modify('+7 days')|date('Y-m-d')})) }}" aria-label="Semaine suivante"><i class="bi bi-chevron-right"></i></a>
+            <h2>{{ tempo_date(week) }} – {{ tempo_date(end, 'd MMM yyyy') }}</h2>
+            <a class="btn btn-outline-tempo today-button" data-nav href="{{ path(route, params) }}">Aujourd’hui</a>
+        </div>
+        <form class="planning-filters" method="get" action="{{ path(route, {section:'planning'}) }}" data-filter data-auto-filter>
+            <input type="hidden" name="semaine" value="{{ week|date('Y-m-d') }}">
+            {% if admin %}<label class="search-control"><i class="bi bi-search" aria-hidden="true"></i><input name="q" class="form-control" placeholder="Nom ou service…" value="{{ search }}" aria-label="Rechercher un collaborateur" data-live-search></label>
+            <select name="service" class="form-select" aria-label="Service"><option value="">Tous les services</option>{% for team in departments %}<option value="{{ team.id }}" {{ team.id == department ? 'selected' }}>{{ team.name }}</option>{% endfor %}</select>{% endif %}
+            <select name="type" class="form-select" aria-label="Type d’absence"><option value="">Tous les types</option>{% for item in types %}<option value="{{ item.id }}" {{ item.id == type ? 'selected' }}>{{ item.name }}</option>{% endfor %}</select>
+        </form>
+    </div>
+    <div class="planning-legend" aria-label="Légende">
+        {% for item in types %}<span><i class="legend-pill tone-{{ item.tone }}" aria-hidden="true"></i>{{ item.name }}</span>{% endfor %}
+        <span><i class="legend-pending" aria-hidden="true"></i>En attente</span>
+    </div>
+    {% if rows %}
+    <div class="planning-scroll" tabindex="0" aria-label="Planning hebdomadaire à défilement horizontal">
+        <div class="planning-grid">
+            <div class="planning-line planning-head"><div class="planning-person">{{ admin ? 'Collaborateurs' : 'Mon calendrier' }}</div>
+            {% for day in days %}<div class="planning-cell planning-day {{ day.nonWorking ? 'is-non-working' }} {{ day.key == today|date('Y-m-d') ? 'is-today' }}" {% if day.nonWorking %}title="{{ day.holiday ?: 'Jour non travaillé' }}"{% endif %}><span>{{ tempo_date(day.date, 'EEE')|capitalize }}</span><strong>{{ day.date|date('d') }}</strong>{% if day.holiday %}<i class="bi bi-flag" aria-label="{{ day.holiday }}"></i>{% endif %}</div>{% endfor %}
+            </div>
+            {% for row in rows %}
+                {% set tracks = max(1, row.events|length) %}
+                <div class="planning-line" style="--tracks:{{ tracks }}">
+                    <div class="planning-person person-cell">{{ ui.avatar(row) }}<span><strong>{{ ui.employeeName(row, row.id, admin) }}</strong><small>{{ ui.departmentLink(row.department, row.department_id, admin) }}</small></span></div>
+                    {% for day in days %}<div class="planning-cell {{ day.nonWorking ? 'is-non-working' }} {{ day.key == today|date('Y-m-d') ? 'is-today' }}" style="grid-column:{{ loop.index + 1 }}"></div>{% endfor %}
+                    {% for event in row.events %}
+                        <button type="button" class="calendar-event tone-{{ event.tone }} {{ event.status == 'pending' ? 'is-pending' }}" style="grid-column:{{ event.column }} / span {{ event.span }};grid-row:{{ loop.index }}" data-modal-url="{{ path('workspace_action', {action:'demande', id:event.id}) }}" aria-haspopup="dialog" title="{{ event.type }} · {{ tempo_days(event.units) }} j · {{ event.status == 'pending' ? 'En attente' : 'Acceptée' }}"><i class="bi bi-{{ event.icon }}" aria-hidden="true"></i><span class="record-underline">{{ event.type }}</span></button>
+                    {% endfor %}
+                </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% else %}{{ ui.empty('Aucun collaborateur ne correspond à votre recherche.', 'people') }}{% endif %}
+    {% if admin %}
+        {% include 'workspace/_pagination.html.twig' with {paginationLabel: 'Pagination du planning', paginationParams: {semaine:week|date('Y-m-d')}} %}
+    {% endif %}
+</section>

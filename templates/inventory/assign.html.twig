@@ -1,0 +1,13 @@
+{% import 'workspace/_components.html.twig' as ui %}
+<div class="page-heading">
+    <div><h1>Assigner un inventaire</h1><p>Choisissez les références à compter et le collaborateur chargé du comptage.</p></div>
+    <a class="btn btn-outline-tempo" data-nav href="{{ path('admin_inventory', {section:'etat'}) }}"><i class="bi bi-list-check" aria-hidden="true"></i> État inventaire</a>
+</div>
+<section class="card inventory-entry">
+    <span class="metric-icon tone-mint"><i class="bi bi-clipboard-plus" aria-hidden="true"></i></span>
+    <div>
+        <h2>{{ campaign ? campaign.name : 'Nouvel inventaire' }}</h2>
+        <p>{{ campaign ? 'Ajoutez une affectation par marque ou catégorie.' : 'La première affectation ouvre l’inventaire et fixe les articles ainsi que leur stock EBP de référence.' }}</p>
+    </div>
+    {{ ui.action(campaign ? 'Ajouter une affectation' : 'Assigner un inventaire', 'assigner-inventaire') }}
+</section>

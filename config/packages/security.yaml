@@ -1,0 +1,30 @@
+security:
+    password_hashers:
+        App\Entity\Employee: auto
+    role_hierarchy:
+        ROLE_ADMIN: ROLE_USER
+    providers:
+        employees:
+            entity:
+                class: App\Entity\Employee
+                property: email
+    firewalls:
+        main:
+            lazy: true
+            provider: employees
+            user_checker: App\Security\EmployeeChecker
+            form_login:
+                login_path: app_login
+                check_path: app_login
+                default_target_path: app_home
+                enable_csrf: true
+            login_throttling:
+                max_attempts: 5
+            logout:
+                path: app_logout
+                target: app_login
+                enable_csrf: true
+    access_control:
+        - { path: '^/(connexion|assets/|identite/logo$|manifest\.webmanifest|offline\.html|sw\.js|tempo(?:-large)?\.png)', roles: PUBLIC_ACCESS }
+        - { path: '^/admin', roles: ROLE_ADMIN }
+        - { path: '^/', roles: ROLE_USER }

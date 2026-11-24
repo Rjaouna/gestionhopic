@@ -1,0 +1,32 @@
+{% set identity = application_appearance() %}
+{% set palettes = application_themes() %}
+<!doctype html>
+<html lang="fr" data-theme="{{ identity.theme }}">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <meta name="theme-color" content="{{ identity.themeColor }}">
+    <meta name="description" content="{{ identity.title }}, espace interne pour les congés et absences.">
+    <title>{% block title %}{{ identity.title }}{% endblock %}</title>
+    <link rel="icon" href="{{ identity.logoUrl ?? '/tempo.png' }}" data-brand-icon>
+    <link rel="apple-touch-icon" href="{{ identity.logoUrl ?? '/tempo.png' }}" data-brand-icon>
+    <link rel="manifest" href="{{ path('appearance_manifest') }}">
+    <link rel="preload" href="{{ asset('vendor/fonts/inter-latin-wght-normal.woff2') }}" as="font" type="font/woff2" crossorigin>
+    <link rel="stylesheet" href="{{ asset('vendor/bootstrap/bootstrap.min.css') }}">
+    <link rel="stylesheet" href="{{ asset('vendor/icons/bootstrap-icons.min.css') }}">
+    <link rel="stylesheet" href="{{ asset('styles/tempo.css') }}">
+    <style>
+        {% for key, palette in palettes %}
+        :is([data-theme="{{ key }}"], [data-palette="{{ key }}"]) {
+            {% for token, color in palette.colors %}
+            --{{ token }}: {{ color }};
+            {% endfor %}
+        }
+        {% endfor %}
+    </style>
+    {% block scripts %}{{ importmap('app') }}{% endblock %}
+</head>
+<body{% block body_attributes %}{% endblock %}>
+{% block body %}{% endblock %}
+</body>
+</html>

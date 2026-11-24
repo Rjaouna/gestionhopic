@@ -1,0 +1,201 @@
+{% import 'workspace/_components.html.twig' as ui %}
+{% set route = admin ? 'admin_section' : 'employee_section' %}
+{% set descriptions = {
+    'demandes': admin ? 'Consultez et traitez les demandes d’absence.' : 'Suivez le statut de vos demandes.',
+    'collaborateurs': 'Consultez les fiches et gérez les accès de vos collaborateurs.',
+    'services': 'Organisez vos collaborateurs par service.',
+    'soldes': admin ? 'Consultez et ajustez les droits de vos collaborateurs.' : 'Consultez vos droits et l’historique des mouvements.',
+    'rapports': 'Suivez les absences et téléchargez les données sélectionnées.',
+    'parametres': 'Configurez les absences, les compteurs, l’horaire de travail et les jours fériés.',
+    'journal': 'Retrouvez les modifications enregistrées dans l’espace RH.',
+    'profil': 'Consultez vos informations personnelles.'
+} %}
+<div class="page-heading">
+    <div><h1>{{ titles[section] }}</h1><p>{{ descriptions[section] }}</p></div>
+    <div class="heading-actions">
+        {% if section == 'demandes' %}{{ ui.action('Nouvelle demande', 'nouvelle') }}
+        {% elseif section == 'collaborateurs' %}{{ ui.action('Ajouter un collaborateur', 'collaborateur') }}
+        {% elseif section == 'services' %}{{ ui.action('Ajouter un service', 'service') }}
+        {% elseif section == 'soldes' and admin %}{{ ui.action('Ajuster un solde', 'solde', 'sliders') }}
+        {% elseif section == 'profil' %}{{ ui.action('Modifier mon profil', 'profil', 'pencil') }}
+        {% elseif section == 'rapports' %}<a class="btn btn-tempo" href="{{ path('admin_export', {service:department ?: null, periode:months}) }}"><i class="bi bi-download"></i> Exporter en CSV</a>{% endif %}
+    </div>
+</div>
+
+{% if section in ['demandes', 'collaborateurs', 'soldes', 'rapports'] and (admin or section == 'demandes') %}
+    <form class="card filters-bar" method="get" action="{{ path(route, {section:section}) }}" data-filter data-auto-filter>
+        {% if section != 'rapports' and admin %}
+            <label class="search-control"><i class="bi bi-search" aria-hidden="true"></i><input name="q" class="form-control" placeholder="{{ section == 'demandes' ? 'Nom ou type d’absence…' : 'Nom ou matricule…' }}" aria-label="Rechercher" value="{{ search }}" data-live-search></label>
+        {% endif %}
+        {% if admin and section != 'soldes' %}<select name="service" class="form-select" aria-label="Service"><option value="">Tous les services</option>{% for team in departments %}<option value="{{ team.id }}" {{ team.id == department ? 'selected' }}>{{ team.name }}{{ team.active ? '' : ' (archivé)' }}</option>{% endfor %}</select>{% endif %}
+        {% if section == 'demandes' %}
+            <select name="statut" class="form-select" aria-label="Statut"><option value="">Tous les statuts</option>{% for key, name in {'pending':'En attente','approved':'Acceptées','refused':'Refusées','cancelled':'Annulées'} %}<option value="{{ key }}" {{ key == status ? 'selected' }}>{{ name }}</option>{% endfor %}</select>
+            <select name="type" class="form-select" aria-label="Type d’absence"><option value="">Tous les types</option>{% for item in types %}<option value="{{ item.id }}" {{ item.id == type ? 'selected' }}>{{ item.name }}</option>{% endfor %}</select>
+            {% if admin %}<a class="btn btn-outline-tempo ms-md-auto" href="{{ path('admin_export', {service:department ?: null, statut:status ?: null, type:type ?: null, q:search ?: null}) }}"><i class="bi bi-download"></i> CSV</a>{% endif %}
+        {% elseif section == 'rapports' %}
+            <select name="periode" class="form-select" aria-label="Période"><option value="6" {{ months == 6 ? 'selected' }}>6 derniers mois</option><option value="3" {{ months == 3 ? 'selected' }}>3 derniers mois</option></select>
+        {% endif %}
+    </form>
+{% endif %}
+
+{% if section == 'demandes' %}
+    <section class="card requests-card" aria-label="{{ titles[section] }}">
+        {% include 'workspace/_requests.html.twig' %}
+        {% include 'workspace/_pagination.html.twig' with {paginationLabel: 'Pagination des demandes'} %}
+    </section>
+{% elseif section == 'collaborateurs' %}
+    <section class="card" aria-label="Collaborateurs">
+        {% if rows %}
+            <div class="table-responsive">
+                <table class="table tempo-table employee-table">
+                    <thead><tr>
+                        <th scope="col">Collaborateur</th><th scope="col">Matricule</th><th scope="col">Service</th>
+                        <th scope="col">Poste</th><th scope="col">Statut</th><th scope="col" class="employee-actions-cell">Actions</th>
+                    </tr></thead>
+                    <tbody>
+                        {% for row in rows %}
+                            {% set name = row.first_name ~ ' ' ~ row.last_name %}
+                            <tr>
+                                <td><div class="person-cell">{{ ui.avatar(row) }}<span><strong>{{ ui.employeeName(row, row.id) }}</strong><small>{{ row.email }}</small></span></div></td>
+                                <td>{{ row.code }}</td>
+                                <td>{% if row.department %}{{ ui.departmentLink(row.department, row.department_id) }}{% else %}—{% endif %}</td>
+                                <td>{{ row.job ?: '—' }}</td>
+                                <td>{{ ui.employeeStatus(row) }}</td>
+                                <td class="employee-actions-cell">
+                                    <div class="employee-actions" role="group" aria-label="Actions pour {{ name }}">
+                                        <button class="icon-button employee-action employee-action-view" type="button" title="Voir la fiche"
+                                                aria-label="Voir la fiche de {{ name }}"
+                                                data-modal-url="{{ path('workspace_action', {action:'fiche-collaborateur', id:row.id}) }}"><i class="bi bi-eye" aria-hidden="true"></i></button>
+                                        <button class="icon-button employee-action" type="button" title="Modifier le collaborateur"
+                                                aria-label="Modifier {{ name }}"
+                                                data-modal-url="{{ path('workspace_action', {action:'collaborateur', id:row.id}) }}"><i class="bi bi-pencil" aria-hidden="true"></i></button>
+                                        <button class="icon-button employee-action" type="button" title="Réinitialiser le mot de passe"
+                                                aria-label="Réinitialiser le mot de passe de {{ name }}"
+                                                data-modal-url="{{ path('workspace_action', {action:'mot-de-passe-collaborateur', id:row.id}) }}"><i class="bi bi-key" aria-hidden="true"></i></button>
+                                    </div>
+                                </td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        {% else %}{{ ui.empty('Aucun collaborateur trouvé.', 'people') }}{% endif %}
+        {% include 'workspace/_pagination.html.twig' with {paginationLabel: 'Pagination des collaborateurs'} %}
+    </section>
+{% elseif section == 'services' %}
+    {% if rows %}
+    <div class="services-grid">{% for row in rows %}<article class="card service-card"><div class="service-top"><span class="metric-icon" style="--service-color:{{ row.color }}"><i class="bi bi-diagram-3" aria-hidden="true"></i></span><button class="icon-button" type="button" data-modal-url="{{ path('workspace_action', {action:'service', id:row.id}) }}" aria-label="Modifier {{ row.name }}"><i class="bi bi-pencil"></i></button></div><h2>{{ ui.departmentLink(row.name, row.id) }}</h2>{% if row.description %}<p>{{ row.description }}</p>{% endif %}<div class="service-meta"><span>{{ row.employees }} {{ row.employees == 1 ? 'collaborateur' : 'collaborateurs' }}</span><span class="status-badge tone-{{ row.active ? 'mint' : 'neutral' }}"><span></span>{{ row.active ? 'Actif' : 'Archivé' }}</span></div></article>{% endfor %}</div>
+    {% else %}<div class="card">{{ ui.empty('Aucun service configuré.', 'diagram-3') }}</div>{% endif %}
+{% elseif section == 'soldes' %}
+    {% if not admin %}{% include 'workspace/_balance_cards.html.twig' %}
+    {% else %}
+        <section class="card" aria-label="Soldes">
+        {% if balances %}<div class="table-responsive"><table class="table tempo-table"><thead><tr><th>Collaborateur</th><th>Compteur</th><th>Disponible</th><th>En attente</th><th>Prévisionnel</th></tr></thead><tbody>
+            {% for row in balances %}
+                <tr>
+                    <td><div class="person-cell">{{ ui.avatar(row) }}<strong>{{ ui.employeeName(row, row.employee_id) }}</strong></div></td>
+                    <td>{{ ui.recordLink(row.name, 'compteur', row.counter_type_id, 'Configurer le compteur ' ~ row.name) }}</td>
+                    <td><strong>{{ tempo_days(row.units) }} j</strong></td>
+                    <td>{{ tempo_days(row.pending) }} j</td>
+                    <td>{{ tempo_days(row.units - row.pending) }} j</td>
+                </tr>
+            {% endfor %}
+        </tbody></table></div>{% else %}{{ ui.empty('Aucun solde à afficher.', 'wallet2') }}{% endif %}
+        {% include 'workspace/_pagination.html.twig' with {paginationLabel: 'Pagination des soldes'} %}
+        </section>
+    {% endif %}
+    <section class="card requests-card mt-4" aria-labelledby="history-title"><header class="card-heading"><div><h2 id="history-title" class="pagination-anchor" tabindex="-1">Historique des mouvements</h2></div></header>
+        {% if movements %}<div class="table-responsive"><table class="table tempo-table"><thead><tr>{% if admin %}<th>Collaborateur</th>{% endif %}<th>Date</th><th>Compteur</th><th>Motif</th><th>Ancien solde</th><th>Nouveau solde</th></tr></thead><tbody>
+            {% for row in movements %}
+                <tr>
+                    {% if admin %}<td>{{ ui.employeeName(row, row.employee_id) }}</td>{% endif %}
+                    <td>{{ tempo_date(row.created_at, 'd MMM yyyy') }}</td>
+                    <td>{{ admin and row.counter_listed ? ui.recordLink(row.name, 'compteur', row.counter_type_id, 'Configurer le compteur ' ~ row.name) : row.name }}</td>
+                    <td>
+                        {{ row.reason != '' ? row.reason : '—' }}
+                        {% if row.leave_request_id %}
+                            <small class="d-block muted">{{ ui.recordLink('Demande associée', 'demande', row.leave_request_id, 'Voir la demande à l’origine du mouvement') }}</small>
+                        {% endif %}
+                    </td>
+                    <td>{{ tempo_days(row.old_units) }} j</td>
+                    <td>{{ tempo_days(row.new_units) }} j</td>
+                </tr>
+            {% endfor %}
+        </tbody></table></div>{% else %}{{ ui.empty('Aucun mouvement enregistré.', 'clock-history') }}{% endif %}
+        {% include 'workspace/_pagination.html.twig' with {pagination: movementPagination, paginationLabel: 'Pagination de l’historique', paginationAnchor: 'history-title'} %}
+    </section>
+{% elseif section == 'rapports' %}
+    <section class="card chart-card report-chart" aria-labelledby="report-title"><header class="card-heading"><div><h2 id="report-title">Évolution des absences</h2><p>Jours d’absence acceptés par mois</p></div></header>
+        <div class="chart-legend">{% for tone, label in legend %}<span><i class="chart-dot chart-{{ tone }}"></i>{{ label }}</span>{% endfor %}</div>
+        <div class="chart-body"><canvas data-chart="{{ chart|json_encode }}" role="img" aria-label="Jours d’absence acceptés par mois et type"></canvas></div>
+        <details class="chart-data"><summary>Données du graphique</summary><table class="table table-sm mb-0"><thead><tr><th>Mois</th>{% for label in legend %}<th>{{ label }}</th>{% endfor %}</tr></thead><tbody>{% for month in chart %}<tr><th>{{ month.label }}</th><td>{{ month.mint }}</td><td>{{ month.violet }}</td><td>{{ month.amber }}</td></tr>{% endfor %}</tbody></table></details>
+    </section>
+{% elseif section == 'parametres' %}
+    <section class="card settings-card mb-3" aria-labelledby="paid-leave-rule-title">
+        <header class="card-heading">
+            <h2 id="paid-leave-rule-title"><i class="bi bi-calendar2-check" aria-hidden="true"></i> Acquisition des congés payés</h2>
+            {{ ui.action('Modifier la règle', 'regle-conges', 'pencil', false) }}
+        </header>
+        <dl class="paid-leave-rule-summary mb-0">
+            <div><dt>Acquisition mensuelle</dt><dd>{{ tempo_days(paidLeaveRule.monthly_units) }} j</dd></div>
+            <div><dt>Disponibilité</dt><dd>{{ paidLeaveRule.waiting_months ? 'Après ' ~ paidLeaveRule.waiting_months ~ ' mois' : 'Dès l’acquisition' }}</dd></div>
+            <div><dt>Compteur</dt><dd>{{ paidLeaveRule.counter_name ?? 'À configurer' }}</dd></div>
+            <div><dt>Crédit automatique</dt><dd>{{ paidLeaveRule.automatic and paidLeaveRule.counter_name ? 'Activé' : 'Désactivé' }}</dd></div>
+        </dl>
+    </section>
+    <div class="settings-grid">
+        {% for key, config in {'type':['Types d’absence', types, 'calendar2'], 'compteur':['Compteurs', counters, 'wallet2'], 'horaire':['Horaire de travail', [], 'clock'], 'ferie':['Jours fériés', holidays, 'flag']} %}
+            <section class="card settings-card" aria-labelledby="settings-{{ key }}"{% if key == 'ferie' %} aria-describedby="settings-holiday-count"{% endif %}>
+                <header class="card-heading">
+                    <div class="settings-heading-label">
+                        <h2 id="settings-{{ key }}"><i class="bi bi-{{ config[2] }}" aria-hidden="true"></i> {{ config[0] }}</h2>
+                        {% if key == 'ferie' %}
+                            {% set count = holidays|length %}
+                            <span class="card-count settings-count" id="settings-holiday-count">{{ count }} {{ count == 1 ? 'jour' : 'jours' }}</span>
+                        {% endif %}
+                    </div>
+                    {% if key == 'horaire' %}
+                        {{ ui.action('Modifier', key, 'pencil', false, schedule.id) }}
+                    {% else %}
+                        <div class="settings-actions">
+                            {% if key == 'ferie' %}
+                                <form method="get" action="{{ path('admin_section', {section:'parametres'}) }}" data-filter data-auto-filter>
+                                    <select class="form-select" name="annee" aria-label="Année des jours fériés">
+                                        {% for year in holidayYears %}<option value="{{ year }}" {{ year == holidayYear ? 'selected' }}>{{ year }}</option>{% endfor %}
+                                    </select>
+                                </form>
+                            {% endif %}
+                            {{ ui.action('Ajouter', key, 'plus-lg', false) }}
+                        </div>
+                    {% endif %}
+                </header>
+                {% if key == 'horaire' %}
+                    <div class="settings-schedule">
+                        <span class="muted">Jours travaillés dans toute l’entreprise</span>
+                        <strong>{{ ui.workdays(schedule.days) }}</strong>
+                    </div>
+                {% elseif config[1] %}
+                    <ul class="settings-list list-unstyled mb-0">
+                        {% for row in config[1] %}
+                            <li>
+                                <span><strong>{{ ui.recordLink(row.name, key, row.id, 'Modifier ' ~ row.name) }}</strong>
+                                    {% if row.day is defined %}<small>{{ tempo_date(row.day, 'd MMM yyyy') }}</small>
+                                    {% elseif row.active is defined %}<small>{{ row.active ? 'Actif' : 'Inactif' }}</small>{% endif %}
+                                </span>
+                                <button class="icon-button" type="button" data-modal-url="{{ path('workspace_action', {action:key, id:row.id}) }}" aria-label="Modifier {{ row.name }}"><i class="bi bi-pencil" aria-hidden="true"></i></button>
+                            </li>
+                        {% endfor %}
+                    </ul>
+                {% else %}{{ ui.empty(key == 'ferie' ? 'Aucun jour férié pour cette année.' : 'Aucun élément configuré.', config[2]) }}{% endif %}
+            </section>
+        {% endfor %}
+    </div>
+{% elseif section == 'journal' %}
+    <section class="card" aria-label="Journal d’activité">
+        {% if rows %}<div class="table-responsive"><table class="table tempo-table"><thead><tr><th>Date</th><th>Administrateur</th><th>Événement</th></tr></thead><tbody>{% for row in rows %}<tr><td>{{ tempo_date(row.created_at, 'd MMM yyyy, HH:mm') }}</td><td>{{ ui.employeeName(row, row.actor_id) }}</td><td>{{ row.message }}</td></tr>{% endfor %}</tbody></table></div>
+        {% else %}{{ ui.empty('Aucune activité enregistrée.', 'clock-history') }}{% endif %}
+        {% include 'workspace/_pagination.html.twig' with {paginationLabel: 'Pagination du journal'} %}
+    </section>
+{% elseif section == 'profil' %}
+    <section class="card profile-card"><div class="person-cell"><span class="avatar tone-mint">{{ user.initials }}</span><div><h2>{{ user.displayName }}</h2><p>{{ user.job ?: 'Collaborateur' }}</p></div></div><dl><div><dt>E-mail</dt><dd>{{ user.email }}</dd></div><div><dt>Matricule</dt><dd>{{ user.code }}</dd></div><div><dt>Téléphone</dt><dd>{{ user.phone ?: 'Non renseigné' }}</dd></div></dl></section>
+{% endif %}

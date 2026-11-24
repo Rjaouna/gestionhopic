@@ -1,0 +1,14 @@
+framework:
+    workflows:
+        leave:
+            type: state_machine
+            supports: [App\Entity\LeaveRequest]
+            marking_store:
+                type: method
+                property: status
+            initial_marking: pending
+            places: [pending, approved, refused, cancelled]
+            transitions:
+                approve: { from: pending, to: approved }
+                refuse: { from: pending, to: refused }
+                cancel: { from: [pending, approved], to: cancelled }

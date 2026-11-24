@@ -1,0 +1,85 @@
+{% import '_brand.html.twig' as brand %}
+{% set appearance = identity ?? application_appearance() %}
+{% set catalog = palettes ?? application_themes() %}
+<form method="post" action="{{ path('admin_update_appearance') }}" enctype="multipart/form-data"
+      data-appearance-form data-current-logo="{{ appearance.logoUrl ?? '' }}">
+    <input type="hidden" name="_token" value="{{ csrf_token('app-appearance') }}">
+    <input type="hidden" name="resetLogo" value="0">
+    <div class="page-heading">
+        <div>
+            <h1>Personnalisation</h1>
+            <p>Modifiez l’identité et les couleurs de votre espace.</p>
+        </div>
+        <div class="heading-actions">
+            <button type="submit" class="btn btn-tempo">Enregistrer</button>
+        </div>
+    </div>
+    <div class="alert alert-danger" role="alert" data-form-error hidden></div>
+    <div class="appearance-grid">
+        <section class="card appearance-card" aria-labelledby="identity-title">
+            <header class="card-heading">
+                <div><h2 id="identity-title">Identité visuelle</h2></div>
+            </header>
+            <div class="appearance-card-body form-stack">
+                <div class="identity-preview" data-brand-preview data-palette="{{ appearance.theme }}">
+                    <div class="brand">{{ brand.logo(appearance) }}{{ brand.word(appearance) }}</div>
+                    <span class="identity-preview-label">Aperçu</span>
+                </div>
+                <label class="field">Nom de l’application
+                    <input class="form-control" name="name" value="{{ appearance.name }}" maxlength="48"
+                           placeholder="Ex. Maison Alba" autocomplete="off" required>
+                </label>
+                <label class="field">Mention courte <span class="field-note">Facultatif</span>
+                    <input class="form-control" name="suffix" value="{{ appearance.suffix }}" maxlength="12"
+                           placeholder="Ex. RH" autocomplete="off">
+                </label>
+                <div class="logo-upload">
+                    <span class="field" id="logo-label">Logo</span>
+                    <input class="visually-hidden" type="file" id="appearance-logo" name="logo"
+                           accept="image/png,image/jpeg,image/webp" aria-labelledby="logo-label" aria-describedby="logo-formats">
+                    <label class="logo-picker" for="appearance-logo">
+                        <i class="bi bi-upload" aria-hidden="true"></i>
+                        <span data-logo-picker-label aria-live="polite">{{ appearance.logoUrl ? 'Remplacer le logo' : 'Choisir une image' }}</span>
+                    </label>
+                    <small class="muted" id="logo-formats">PNG, JPEG ou WebP, 2 Mo maximum.</small>
+                </div>
+                <button class="logo-reset text-link" type="button" data-reset-logo {% if not appearance.logoUrl %}hidden{% endif %}>
+                    Utiliser le logo d’origine
+                </button>
+            </div>
+        </section>
+        <section class="card appearance-card" aria-labelledby="themes-title">
+            <header class="card-heading">
+                <div>
+                    <h2 id="themes-title">Thème de couleurs</h2>
+                    <p>Le thème s’applique à tous les espaces.</p>
+                </div>
+            </header>
+            <div class="appearance-card-body">
+                <fieldset class="palette-grid">
+                    <legend class="visually-hidden">Choisir un thème de couleurs</legend>
+                    {% for key, palette in catalog %}
+                        <label class="palette-option">
+                            <input class="visually-hidden" type="radio" name="theme" value="{{ key }}"
+                                   {% if appearance.theme == key %}checked{% endif %} required>
+                            <span class="palette-card">
+                                <span class="palette-preview" data-palette="{{ key }}" aria-hidden="true">
+                                    <span class="palette-sidebar"><i></i><i></i><i></i></span>
+                                    <span class="palette-window">
+                                        <span class="palette-toolbar"><i></i><i></i></span>
+                                        <span class="palette-banner"></span>
+                                        <span class="palette-widgets"><i></i><i></i><i></i></span>
+                                    </span>
+                                </span>
+                                <span class="palette-title">
+                                    <span>{{ palette.label }}</span>
+                                    <span class="palette-check" aria-hidden="true"><i class="bi bi-check"></i></span>
+                                </span>
+                            </span>
+                        </label>
+                    {% endfor %}
+                </fieldset>
+            </div>
+        </section>
+    </div>
+</form>

@@ -1,0 +1,44 @@
+{% macro scope(assignment) %}
+    {%- set labels = [] -%}
+    {%- if assignment.brand is not null -%}{%- set labels = labels|merge([assignment.brand ?: 'Sans marque']) -%}{%- endif -%}
+    {%- if assignment.category is not null -%}{%- set labels = labels|merge([assignment.category ?: 'Sans catégorie']) -%}{%- endif -%}
+    {{- labels ? labels|join(' · ') : 'Tout le catalogue' -}}
+{% endmacro %}
+
+{% macro assignmentStatus(row) %}
+    {% if row.campaign_closed %}<span class="status-badge tone-mint"><span></span>Finalisée</span>
+    {% elseif row.closed_at %}<span class="status-badge tone-mint"><span></span>Clôturée</span>
+    {% elseif row.finished == row.total %}<span class="status-badge tone-blue"><span></span>À clôturer</span>
+    {% elseif row.counting or row.finished %}<span class="status-badge tone-amber"><span></span>En cours</span>
+    {% else %}<span class="status-badge tone-neutral"><span></span>Attribuée</span>{% endif %}
+{% endmacro %}
+
+{% macro responsibility(row, linked = false) %}
+    {% import 'workspace/_components.html.twig' as ui %}
+    {% set name = row.first_name ~ ' ' ~ row.last_name %}
+    <span class="inventory-meta-badge tone-blue" title="Responsable du comptage"><i class="bi bi-person" aria-hidden="true"></i>
+        {{ linked ? ui.recordLink(name, 'fiche-collaborateur', row.employee_id, 'Voir la fiche de ' ~ name) : name }}
+    </span>
+{% endmacro %}
+
+{% macro scopeBadges(row) %}
+    {% set category = row.category ?? (row.category_count == 1 ? row.sole_category : null) %}
+    <span class="inventory-meta-badge tone-violet" title="Catégorie"><i class="bi bi-tags" aria-hidden="true"></i>
+        {{ category is not null ? (category ?: 'Sans catégorie') : row.category_count|number_format(0, ',', ' ') ~ ' catégories' }}
+    </span>
+    <span class="inventory-meta-badge tone-neutral" title="Marque"><i class="bi bi-tag" aria-hidden="true"></i> {{ row.brand is null ? 'Toutes marques' : (row.brand ?: 'Sans marque') }}</span>
+{% endmacro %}
+
+{% macro articleBadge(total) %}
+    <span class="inventory-meta-badge tone-mint"><i class="bi bi-boxes" aria-hidden="true"></i> {{ total|number_format(0, ',', ' ') }} {{ total == 1 ? 'article' : 'articles' }}</span>
+{% endmacro %}
+
+{% macro countdown(seconds) %}
+    <span class="inventory-meta-badge tone-amber inventory-countdown"><i class="bi bi-clock" aria-hidden="true"></i>
+        Réouverture possible pendant <time datetime="PT{{ seconds }}S" data-inventory-deadline-target="clock" data-seconds="{{ seconds }}">{{ '%02d:%02d'|format(seconds // 60, seconds % 60) }}</time>
+    </span>
+{% endmacro %}
+
+{% macro quantity(value) %}
+    {{- value is null ? '—' : value|replace({'.':','}) -}}
+{% endmacro %}

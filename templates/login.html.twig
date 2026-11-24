@@ -1,0 +1,31 @@
+{% extends 'base.html.twig' %}
+{% import '_brand.html.twig' as brand %}
+{% block title %}Connexion · {{ identity.title }}{% endblock %}
+{% block body %}
+<main class="login-shell">
+    <section class="login-brand-panel">
+        <a class="brand" href="{{ path('app_login') }}" aria-label="{{ identity.title }}">{{ brand.logo(identity) }}{{ brand.word(identity) }}</a>
+        <div class="login-intro">
+            <div class="login-art" aria-hidden="true"><i class="bi bi-calendar2-week"></i><span class="dot dot-a"></span><span class="dot dot-b"></span></div>
+            <h1>Congés et<br>absences</h1>
+            <p>Consultez le planning et gérez vos demandes dans votre espace.</p>
+        </div>
+    </section>
+    <section class="login-form-panel">
+        <div class="login-form-content">
+            <div class="brand login-mobile-brand">{{ brand.logo(identity) }}{{ brand.word(identity) }}</div>
+            <h2>Connectez-vous</h2>
+            <p class="muted">Accédez à votre espace.</p>
+            {% if error %}<div class="alert alert-danger" role="alert">Connexion refusée. Vérifiez vos identifiants ou réessayez dans quelques instants.</div>{% endif %}
+            <form method="post" class="login-form">
+                <label for="login-email" class="form-label">Adresse e-mail</label>
+                <input class="form-control mb-3" name="_username" id="login-email" type="email" value="{{ username }}" placeholder="prenom@entreprise.fr" autocomplete="username" required>
+                <label for="login-password" class="form-label">Mot de passe</label>
+                <input class="form-control" name="_password" id="login-password" type="password" placeholder="Votre mot de passe" autocomplete="current-password" required>
+                <input type="hidden" name="_csrf_token" value="{{ csrf_token('authenticate') }}">
+                <button class="btn btn-tempo w-100 mt-4">Se connecter</button>
+            </form>
+        </div>
+    </section>
+</main>
+{% endblock %}

@@ -1,0 +1,53 @@
+{% macro url(route, query, parameter, number, anchor) %}
+    {{- path(route, query|merge({(parameter): number > 1 ? number : null})) ~ (anchor ? '#' ~ anchor : '') -}}
+{% endmacro %}
+
+{% if pagination.total %}
+    {% set query = app.request.query.all|merge({section: section})|merge(paginationParams|default({})) %}
+    {% set anchor = paginationAnchor|default('') %}
+    {% set current = pagination.page %}
+    {% set pages = pagination.pages %}
+    <nav class="table-pagination" aria-label="{{ paginationLabel }}">
+        <p class="pagination-summary">
+            <strong>{{ pagination.offset + 1 }}–{{ min(pagination.total, pagination.offset + pagination.size) }}</strong>
+            sur {{ pagination.total }}
+        </p>
+        {% if pages > 1 %}
+            {% if pages <= 5 %}
+                {% set numbers = 1..pages %}
+            {% else %}
+                {% set start = max(2, current - 1) %}
+                {% set end = min(pages - 1, current + 1) %}
+                {% set numbers = [1]|merge(start > 2 ? ['…'] : [])|merge(start..end)|merge(end < pages - 1 ? ['…'] : [])|merge([pages]) %}
+            {% endif %}
+            <div class="pagination-controls">
+                {% if current > 1 %}
+                    <a class="pagination-button" data-nav href="{{ _self.url(route, query, pagination.parameter, current - 1, anchor) }}" aria-label="Page précédente" title="Page précédente">
+                        <i class="bi bi-chevron-left" aria-hidden="true"></i>
+                    </a>
+                {% else %}
+                    <span class="pagination-button is-disabled" aria-hidden="true"><i class="bi bi-chevron-left"></i></span>
+                {% endif %}
+                <span class="pagination-compact">Page <strong>{{ current }}</strong> sur {{ pages }}</span>
+                <span class="pagination-pages">
+                    {% for number in numbers %}
+                        {% if number == '…' %}
+                            <span class="pagination-gap" aria-hidden="true">…</span>
+                        {% elseif number == current %}
+                            <span class="pagination-button is-current" aria-current="page" aria-label="Page {{ number }}">{{ number }}</span>
+                        {% else %}
+                            <a class="pagination-button" data-nav href="{{ _self.url(route, query, pagination.parameter, number, anchor) }}" aria-label="Page {{ number }}">{{ number }}</a>
+                        {% endif %}
+                    {% endfor %}
+                </span>
+                {% if current < pages %}
+                    <a class="pagination-button" data-nav href="{{ _self.url(route, query, pagination.parameter, current + 1, anchor) }}" aria-label="Page suivante" title="Page suivante">
+                        <i class="bi bi-chevron-right" aria-hidden="true"></i>
+                    </a>
+                {% else %}
+                    <span class="pagination-button is-disabled" aria-hidden="true"><i class="bi bi-chevron-right"></i></span>
+                {% endif %}
+            </div>
+        {% endif %}
+    </nav>
+{% endif %}

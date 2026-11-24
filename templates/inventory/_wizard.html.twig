@@ -1,0 +1,38 @@
+{% import 'workspace/_components.html.twig' as ui %}
+<ol class="inventory-wizard-steps" aria-label="Étapes de l’affectation">
+    {% for label in ['Périmètre', 'Collaborateur', 'Confirmation'] %}
+        <li data-inventory-wizard-target="indicator" {{ loop.first ? 'aria-current="step"' }}><span>{{ loop.index }}</span>{{ label }}</li>
+    {% endfor %}
+</ol>
+<div class="form-stack" data-inventory-wizard-target="step">
+    {% if not campaign %}
+        <label class="field">Nom de l’inventaire <span class="field-note">Facultatif</span>
+            <input class="form-control" name="name" maxlength="120" placeholder="Ex. Inventaire de fin d’année">
+        </label>
+    {% endif %}
+    <div class="form-grid">
+        <label class="field">Marque
+            <select class="form-select" name="marque" data-inventory-wizard-target="brand" data-action="inventory-wizard#preview">
+                <option value="">Toutes les marques</option>
+                {% for brand in brands %}<option value="={{ brand.value }}" {% if brand.inventoried %}class="inventory-option-completed"{% endif %}>{{ brand.value ?: 'Sans marque' }}{{ brand.inventoried ? ' · Inventoriée' }}</option>{% endfor %}
+            </select>
+        </label>
+        <label class="field">Catégorie
+            <select class="form-select" name="categorie" data-inventory-wizard-target="category" data-action="inventory-wizard#preview">
+                <option value="">Toutes les catégories</option>
+                {% for category in categories %}<option value="={{ category.value }}" {% if category.inventoried %}class="inventory-option-completed"{% endif %}>{{ category.value ?: 'Sans catégorie' }}{{ category.inventoried ? ' · Inventoriée' }}</option>{% endfor %}
+            </select>
+        </label>
+    </div>
+    <p class="opening-balance mb-0" aria-live="polite" data-inventory-wizard-target="scopeStatus">Calcul du périmètre…</p>
+</div>
+<div class="form-stack" data-inventory-wizard-target="step" hidden>
+    {{ ui.employeePicker('inventory-employee', people) }}
+</div>
+<dl class="employee-facts" data-inventory-wizard-target="step" hidden>
+    <div><dt>Périmètre</dt><dd data-inventory-wizard-target="summaryScope"></dd></div>
+    <div><dt>Collaborateur</dt><dd data-inventory-wizard-target="summaryEmployee"></dd></div>
+    <div><dt>Articles à inventorier</dt><dd data-inventory-wizard-target="summaryCount"></dd></div>
+</dl>
+<input type="hidden" name="campaign" data-inventory-wizard-target="campaign">
+<input type="hidden" name="available" data-inventory-wizard-target="available">

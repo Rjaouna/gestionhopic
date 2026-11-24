@@ -1,0 +1,166 @@
+{% import 'workspace/_components.html.twig' as ui %}
+{% import 'inventory/_components.html.twig' as inventory %}
+{% set route = 'admin_inventory' %}
+<div class="page-heading">
+    <div><h1>État inventaire</h1><p>Suivez les affectations, les comptages et les écarts avec le stock EBP.</p></div>
+    <div class="heading-actions">
+        <a class="btn btn-outline-tempo" data-nav href="{{ path(route, {section:'liste'}) }}"><i class="bi bi-clipboard-check" aria-hidden="true"></i> Liste des inventaires</a>
+        <a class="btn btn-outline-tempo" data-nav href="{{ path(route, {section:'assigner'}) }}"><i class="bi bi-clipboard-plus" aria-hidden="true"></i> Assigner un inventaire</a>
+    </div>
+</div>
+{% if campaign %}
+    <div data-controller="inventory-live" data-inventory-campaign="{{ campaign.id }}" data-inventory-assignment="{{ reviewedAssignment.id ?? '' }}">
+        <section class="card inventory-campaign-card" aria-label="Avancement de l’inventaire">
+            <header class="card-heading">
+                <div><h2>{{ campaign.name }}</h2><p>Lancé le {{ campaign.started_at|date('d/m/Y') }}</p></div>
+                <div class="heading-actions">
+                    <form method="get" action="{{ path(route, {section:section}) }}" data-filter data-auto-filter>
+                        <select class="form-select" name="inventaire" aria-label="Campagne d’inventaire">
+                            {% for item in campaigns %}<option value="{{ item.id }}" {{ item.id == campaign.id ? 'selected' }}>{{ item.name }} · n°{{ item.id }}</option>{% endfor %}
+                        </select>
+                    </form>
+                    <div class="inventory-campaign-actions" id="inventory-campaign-actions" data-inventory-live-target="content">
+                        {% if campaign.closed_at %}
+                            <a class="btn btn-tempo" href="{{ path('admin_inventory_export', {id:campaign.id}) }}"><i class="bi bi-download" aria-hidden="true"></i> Exporter pour EBP</a>
+                        {% else %}
+                            <button class="btn btn-outline-danger" type="button" aria-haspopup="dialog"
+                                    data-modal-url="{{ path('workspace_action', {action:'annuler-inventaire', id:campaign.id}) }}"><i class="bi bi-x-circle" aria-hidden="true"></i> Annuler l’inventaire</button>
+                            <button class="btn btn-tempo" type="button" {{ not inventoryStats.canClose ? 'disabled' }}
+                                    data-modal-url="{{ path('workspace_action', {action:'cloturer-inventaire', id:campaign.id}) }}"><i class="bi bi-check2-circle" aria-hidden="true"></i> Clôturer l’inventaire</button>
+                        {% endif %}
+                    </div>
+                </div>
+            </header>
+            <div id="inventory-campaign-progress" data-inventory-live-target="content" class="inventory-campaign-progress">
+                <dl class="inventory-metrics inventory-progress-metrics mb-0">
+                    {% for metric in [
+                        ['Articles', inventoryStats.total, 'boxes', 'blue'],
+                        ['Affectés', inventoryStats.assigned, 'people', 'violet'],
+                        ['En comptage', inventoryStats.counting, 'pencil', 'amber'],
+                        ['Terminés', inventoryStats.finished, 'check2-circle', 'mint']
+                    ] %}
+                        <div class="inventory-metric">
+                            <span class="metric-icon tone-{{ metric[3] }}"><i class="bi bi-{{ metric[2] }}" aria-hidden="true"></i></span>
+                            <div><dt>{{ metric[0] }}</dt><dd>{{ metric[1]|number_format(0, ',', ' ') }}</dd></div>
+                        </div>
+                    {% endfor %}
+                </dl>
+                <progress class="inventory-progress" max="{{ max(1, inventoryStats.total) }}" value="{{ inventoryStats.finished }}" aria-label="Articles terminés"></progress>
+                {% if campaign.closed_at %}
+                    <p class="inventory-progress-message tone-mint">Inventaire clôturé le {{ campaign.closed_at|date('d/m/Y') }}. Le fichier EBP est disponible.</p>
+                {% elseif inventoryStats.remaining %}
+                    <p class="inventory-progress-message tone-amber"><strong>Inventaire incomplet.</strong> {{ inventoryStats.remaining|number_format(0, ',', ' ') }} {{ inventoryStats.remaining == 1 ? 'article à terminer' : 'articles à terminer' }}, dont {{ inventoryStats.unassigned|number_format(0, ',', ' ') }} {{ inventoryStats.unassigned == 1 ? 'non affecté' : 'non affectés' }}.</p>
+                {% elseif inventoryStats.openAssignments %}
+                    <p class="inventory-progress-message tone-blue">Tous les articles sont comptés. {{ inventoryStats.openAssignments }} {{ inventoryStats.openAssignments == 1 ? 'affectation doit encore être clôturée' : 'affectations doivent encore être clôturées' }}.</p>
+                {% elseif inventoryStats.reviewUntil %}
+                    <p class="inventory-progress-message tone-blue">Tous les articles sont comptés. La clôture finale sera disponible à {{ inventoryStats.reviewUntil|date('H:i:s') }}, à la fin du délai de correction.</p>
+                {% else %}
+                    <p class="inventory-progress-message tone-mint">Tous les articles sont comptés et toutes les affectations sont clôturées.</p>
+                {% endif %}
+            </div>
+        </section>
+
+        <section class="card mb-3" aria-labelledby="inventory-assignments-title">
+            <header class="card-heading"><div><h2 id="inventory-assignments-title">Affectations</h2></div></header>
+            <div class="table-responsive" id="inventory-assignments-live" data-inventory-live-target="content">
+                {% if assignments %}
+                <table class="table tempo-table">
+                    <thead><tr><th scope="col">Collaborateur</th><th scope="col">Périmètre</th><th scope="col">Terminés</th><th scope="col">Statut</th>
+                        <th scope="col" class="text-end">Actions</th>
+                    </tr></thead>
+                    <tbody>
+                        {% for row in assignments %}
+                            <tr>
+                                <td>{{ inventory.responsibility(row, true) }}</td><td><div class="inventory-meta">{{ inventory.scopeBadges(row) }}</div></td>
+                                <td><span class="inventory-meta-badge tone-mint">{{ row.finished }} / {{ row.total }}</span></td><td>{{ inventory.assignmentStatus(row) }}</td>
+                                <td class="text-end">
+                                    <div class="inventory-assignment-actions">
+                                        <a class="icon-button inventory-view-button" data-nav href="{{ path(route, {section:section, inventaire:campaign.id, affectation:row.id}) }}#inventory-review-title"
+                                           aria-label="Voir l’avancement de {{ row.first_name }} {{ row.last_name }}" title="Voir l’avancement"
+                                           {% if reviewedAssignment and reviewedAssignment.id == row.id %}aria-current="true"{% endif %}><i class="bi bi-eye" aria-hidden="true"></i></a>
+                                        {% if not campaign.closed_at %}
+                                            <a class="icon-button inventory-view-button" data-nav href="{{ path(route, {section:'liste', affectation:row.id}) }}"
+                                               aria-label="Traiter l’affectation de {{ row.first_name }} {{ row.last_name }}" title="Traiter l’affectation"><i class="bi bi-pencil-square" aria-hidden="true"></i></a>
+                                            <button class="icon-button inventory-cancel-button" type="button" aria-haspopup="dialog"
+                                                aria-label="Annuler l’affectation de {{ row.first_name }} {{ row.last_name }}" title="Annuler cette affectation"
+                                                data-modal-url="{{ path('workspace_action', {action:'annuler-affectation-inventaire', id:row.id}) }}"><i class="bi bi-x-lg" aria-hidden="true"></i></button>
+                                        {% endif %}
+                                    </div>
+                                </td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+                {% else %}
+                    {{ ui.empty('Aucune affectation pour cet inventaire.', 'clipboard') }}
+                {% endif %}
+            </div>
+        </section>
+
+        <section class="card" aria-labelledby="inventory-review-title">
+            <header class="card-heading">
+                <div>
+                    <h2 id="inventory-review-title" class="pagination-anchor" tabindex="-1">{% if reviewedAssignment %}Avancement de {{ reviewedAssignment.first_name }} {{ reviewedAssignment.last_name }}{% else %}Comparaison des articles{% endif %}</h2>
+                    {% if reviewedAssignment %}
+                        <div class="inventory-meta">{{ inventory.responsibility(reviewedAssignment, true) }}{{ inventory.scopeBadges(reviewedAssignment) }}{{ inventory.articleBadge(reviewedAssignment.total) }}</div>
+                    {% else %}<p>Quantités EBP relevées au lancement de l’inventaire.</p>{% endif %}
+                </div>
+                {% if reviewedAssignment %}
+                    <a class="btn btn-outline-tempo" data-nav href="{{ path(route, {section:section, inventaire:campaign.id}) }}#inventory-review-title"><i class="bi bi-arrow-left" aria-hidden="true"></i> Toute la comparaison</a>
+                {% else %}
+                    <span id="inventory-difference-badge" data-inventory-live-target="content"><span class="inventory-quantity tone-amber">{{ inventoryStats.discrepancies }} {{ inventoryStats.discrepancies == 1 ? 'écart' : 'écarts' }}</span></span>
+                {% endif %}
+            </header>
+            {% if reviewedAssignment %}
+                <div id="inventory-assignment-progress" class="inventory-campaign-progress" data-inventory-live-target="content">
+                    <div class="inventory-assignment-summary">
+                        <span><strong>{{ reviewedAssignment.finished|number_format(0, ',', ' ') }}</strong> sur {{ reviewedAssignment.total|number_format(0, ',', ' ') }} {{ reviewedAssignment.total == 1 ? 'article terminé' : 'articles terminés' }}</span>
+                        {{ inventory.assignmentStatus(reviewedAssignment) }}
+                    </div>
+                    <progress class="inventory-progress" max="{{ reviewedAssignment.total }}" value="{{ reviewedAssignment.finished }}" aria-label="Avancement de l’affectation"></progress>
+                </div>
+            {% endif %}
+            <form class="inventory-review-filters filters-bar" method="get" action="{{ path(route, {section:section}) }}" data-filter data-auto-filter>
+                <input type="hidden" name="inventaire" value="{{ campaign.id }}">
+                {% if reviewedAssignment %}<input type="hidden" name="affectation" value="{{ reviewedAssignment.id }}">{% endif %}
+                <label class="search-control"><i class="bi bi-search" aria-hidden="true"></i><input class="form-control" name="q" aria-label="Rechercher un article" maxlength="160" placeholder="Référence, désignation ou OEM…" value="{{ search }}" data-live-search></label>
+                <select class="form-select" name="statut" aria-label="Statut des articles">
+                    <option value="">Articles affectés</option>
+                    {% for value, label in {'a-compter':'À terminer', 'ecarts':'Avec un écart'} %}
+                        <option value="{{ value }}" {{ lineState == value ? 'selected' }}>{{ label }}</option>
+                    {% endfor %}
+                </select>
+            </form>
+            <div id="inventory-review-live" data-inventory-live-target="content">
+                {% if inventoryLines %}
+                    <div class="table-responsive" tabindex="0" aria-label="Comparaison des quantités">
+                        <table class="table tempo-table inventory-table">
+                            <thead><tr><th scope="col">Article</th><th scope="col">Marque</th><th scope="col">Catégorie</th><th scope="col">Qté EBP</th><th scope="col">Qté inventoriée</th><th scope="col">Écart</th><th scope="col">Statut</th></tr></thead>
+                            <tbody>
+                                {% for row in inventoryLines %}
+                                    <tr>
+                                        <td class="inventory-item-name"><strong>{{ row.description ?: row.reference }}</strong><small>{{ row.reference }}</small></td>
+                                        <td>{{ row.brand ?: '—' }}</td><td>{{ row.category ?: '—' }}</td>
+                                        <td><span class="inventory-quantity tone-blue">{{ inventory.quantity(row.expected_quantity) }}</span></td>
+                                        <td><span class="inventory-quantity {{ row.completed ? 'tone-mint' : (row.counted_quantity is not null ? 'tone-amber' : 'tone-neutral') }}">{{ inventory.quantity(row.counted_quantity) }}</span></td>
+                                        <td>{% if row.completed %}<span class="inventory-quantity {{ row.difference ? 'tone-amber' : 'tone-mint' }}">{{ row.difference > 0 ? '+' }}{{ inventory.quantity(row.difference|round(6)) }}</span>{% else %}—{% endif %}</td>
+                                        <td>
+                                            {% if row.completed %}<span class="status-badge tone-mint"><span></span>Terminé</span>
+                                            {% elseif row.counted_quantity is not null %}<span class="status-badge tone-amber"><span></span>En cours</span>
+                                            {% else %}<span class="status-badge tone-neutral"><span></span>À compter</span>{% endif %}
+                                        </td>
+                                    </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    {% include 'workspace/_pagination.html.twig' with {paginationLabel:'Pagination de la comparaison', paginationParams:{inventaire: campaign.id, affectation: reviewedAssignment.id ?? null}, paginationAnchor: reviewedAssignment ? 'inventory-review-title' : ''} %}
+                {% else %}
+                    {{ ui.empty(inventoryStats.assigned ? 'Aucun article ne correspond à ces filtres.' : 'Aucun article affecté à cet inventaire.', 'boxes') }}
+                {% endif %}
+            </div>
+        </section>
+    </div>
+{% else %}
+    <section class="card">{{ ui.empty('Aucun inventaire créé. Assignez une première série d’articles pour démarrer.', 'clipboard-check') }}</section>
+{% endif %}

@@ -1,0 +1,59 @@
+<div class="page-heading">
+    <div><h1>Connexion BDD</h1><p>Configurez la source CSV EBP et lancez la mise à jour du catalogue.</p></div>
+    <a class="btn btn-outline-tempo" href="{{ path('admin_inventory', {section:'articles-ebp'}) }}" data-nav><i class="bi bi-boxes" aria-hidden="true"></i> Voir les articles</a>
+</div>
+
+<div class="inventory-connection" data-controller="ebp-sync"
+     data-ebp-sync-url-value="{{ path('admin_ebp_sync') }}" data-ebp-sync-status-value="{{ ebpStatus|json_encode }}"
+     data-action="online@window->ebp-sync#resume offline@window->ebp-sync#pause">
+    <form class="card inventory-source-card" method="post" action="{{ path('admin_ebp_sync') }}"
+          data-ebp-sync-target="form" data-action="submit->ebp-sync#submit">
+        <header class="card-heading">
+            <div><h2>Source EBP</h2><p>URL du CSV et chemin des photos</p></div>
+            <button type="button" class="icon-button btn-outline-tempo" data-action="ebp-sync#edit"
+                    data-ebp-sync-target="edit" title="Modifier la connexion" aria-label="Modifier la connexion"><i class="bi bi-pencil" aria-hidden="true"></i></button>
+        </header>
+        <div class="inventory-source-fields">
+            <input type="hidden" name="_token" value="{{ csrf_token('ebp-sync') }}">
+            <label class="field">URL HTTPS de l’export CSV
+                <input type="url" class="form-control" name="sourceUrl" required maxlength="2000" value="{{ ebpStatus.sourceUrl }}"
+                       data-ebp-sync-target="source" readonly>
+            </label>
+            <label class="field">Chemin des photos <span class="field-note">Facultatif</span>
+                <input type="text" class="form-control" name="photoPath" maxlength="2000" value="{{ ebpStatus.photoPath }}"
+                       placeholder="https://exemple.ma/photos/{reference}.jpg" data-ebp-sync-target="photos" readonly>
+                <small class="muted">Utilisez <code>{reference}</code>, <code>{code_web}</code> ou <code>{unique_id}</code>. Avec une URL de dossier, l’application ajoute le code web suivi de <code>.jpg</code>.</small>
+            </label>
+            <div class="inventory-source-actions" data-ebp-sync-target="editActions" hidden>
+                <button type="button" class="btn btn-outline-tempo" data-action="ebp-sync#cancel">Annuler</button>
+                <button class="btn btn-tempo" type="submit" name="operation" value="save">Enregistrer</button>
+            </div>
+        </div>
+        <div class="inventory-source-actions inventory-source-footer">
+            <button class="btn btn-outline-tempo" type="submit" name="operation" value="test" data-ebp-sync-target="test">
+                <i class="bi bi-link-45deg" aria-hidden="true"></i> Tester la connexion
+            </button>
+            <button class="btn btn-tempo" type="submit" name="operation" value="enqueue" data-ebp-sync-target="start">
+                <i class="bi bi-arrow-repeat" aria-hidden="true"></i> Mettre à jour la base
+            </button>
+        </div>
+        <p class="inventory-sync-notice" data-ebp-sync-target="notice" role="status" hidden></p>
+    </form>
+
+    <section class="card inventory-sync-card" aria-labelledby="ebp-progress-title">
+        <header class="card-heading"><div><h2 id="ebp-progress-title">Synchronisation</h2></div></header>
+        <div class="inventory-sync-body">
+            <div class="inventory-sync-stage">
+                <span class="metric-icon tone-mint"><i class="bi bi-cloud-arrow-down" aria-hidden="true"></i></span>
+                <div><strong data-ebp-sync-target="stage">Aucune mise à jour en cours</strong>
+                    <p class="muted mb-0" data-ebp-sync-target="message" aria-live="polite"></p>
+                </div>
+            </div>
+            <progress class="inventory-progress" max="100" aria-label="Progression de la synchronisation" data-ebp-sync-target="progress" hidden></progress>
+            <dl class="inventory-sync-last mb-0">
+                <div><dt>Dernière mise à jour réussie</dt><dd data-ebp-sync-target="lastImport">—</dd></div>
+                <div><dt>Articles importés</dt><dd data-ebp-sync-target="lastCount">—</dd></div>
+            </dl>
+        </div>
+    </section>
+</div>

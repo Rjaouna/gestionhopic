@@ -1,0 +1,39 @@
+{% import 'workspace/_components.html.twig' as ui %}
+{% import 'inventory/_components.html.twig' as inventory %}
+{% set activeAssignments = inventorySummary.assignments|default(0) %}
+<div{% if balances or activeAssignments %} class="employee-balances"{% endif %}>
+    {% for balance in balances %}
+        {% set total = balance.units + balance.consumed %}
+        {% set percent = total > 0 ? (100 * balance.units / total)|round : 0 %}
+        <article class="card balance-card" style="--counter-color:{{ balance.color }}">
+            <header><span class="metric-icon tone-{{ ['mint','violet','blue'][loop.index0 % 3] }}"><i class="bi bi-{{ ['sun','hourglass-split','clock-history'][loop.index0 % 3] }}" aria-hidden="true"></i></span><h3>{{ balance.name }}</h3></header>
+            <div class="balance-main"><div class="balance-ring" style="--progress:{{ percent }}%" aria-hidden="true"><span><i class="bi bi-calendar2-check"></i></span></div><div><strong>{{ tempo_days(balance.units) }} <small>j</small></strong><span>disponibles</span></div></div>
+            <div class="balance-note"><span>En attente <b>{{ tempo_days(balance.pending) }} j</b></span><span>Prévisionnel <b>{{ tempo_days(balance.units - balance.pending) }} j</b></span></div>
+        </article>
+    {% else %}
+        <div class="card">{{ ui.empty('Aucun compteur attribué.', 'wallet2') }}</div>
+    {% endfor %}
+    {% if activeAssignments %}
+        <a class="card balance-card employee-inventory-card" data-nav href="{{ path('employee_section', {section:'inventaires'}) }}"
+           {% if activeAssignments == 1 and inventorySummary.reopen_seconds %}data-inventory-expiring{% endif %}>
+            <header>
+                <span class="metric-icon tone-blue"><i class="bi bi-clipboard-check" aria-hidden="true"></i></span>
+                <h3>Mes inventaires</h3>
+                <span class="status-badge tone-blue ms-auto">{{ activeAssignments }}<span class="visually-hidden"> {{ activeAssignments == 1 ? 'affectation' : 'affectations' }}</span></span>
+            </header>
+            <div class="balance-main">
+                <div>
+                    {% if inventorySummary.open_assignments %}
+                        <strong>{{ inventorySummary.remaining|number_format(0, ',', ' ') }}</strong>
+                        <span>{{ inventorySummary.remaining == 1 ? 'article à terminer' : 'articles à terminer' }}</span>
+                    {% else %}
+                        <strong class="inventory-dashboard-status">Comptage terminé</strong>
+                        <span>En attente de clôture globale</span>
+                    {% endif %}
+                </div>
+            </div>
+            {% if inventorySummary.reopen_seconds %}<div class="inventory-dashboard-countdown">{{ inventory.countdown(inventorySummary.reopen_seconds) }}</div>{% endif %}
+            <div class="balance-note"><b>Voir mes inventaires</b><i class="bi bi-arrow-right" aria-hidden="true"></i></div>
+        </a>
+    {% endif %}
+</div>

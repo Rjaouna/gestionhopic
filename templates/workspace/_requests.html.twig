@@ -1,0 +1,24 @@
+{% import 'workspace/_components.html.twig' as ui %}
+{% if rows %}
+    <div class="table-responsive requests-wrap">
+        <table class="table tempo-table requests-table">
+            <thead><tr>{% if admin %}<th scope="col">Collaborateur</th>{% endif %}<th scope="col">Type d’absence</th><th scope="col">Période</th><th scope="col">Durée</th><th scope="col">Statut</th><th scope="col"><span class="visually-hidden">Détails</span></th></tr></thead>
+            <tbody>
+                {% for row in rows %}
+                    <tr>
+                        {% if admin %}
+                            <td><div class="person-cell">{{ ui.avatar(row, row.tone) }}<span><strong>{{ ui.employeeName(row, row.employee_id) }}</strong><small>{{ ui.departmentLink(row.department, row.department_id) }}</small></span></div></td>
+                        {% endif %}
+                        <td>{{ ui.kind(row, true) }}</td>
+                        <td class="table-period">{{ ui.range(row) }}</td>
+                        <td>{{ tempo_days(row.units) }} j</td>
+                        <td>{{ ui.status(row.status) }}</td>
+                        <td class="text-end"><button type="button" class="icon-button row-action" data-modal-url="{{ path('workspace_action', {action:'demande', id:row.id}) }}" aria-label="Voir la demande{% if admin %} de {{ row.first_name }} {{ row.last_name }}{% endif %}" title="Voir la demande"><i class="bi bi-three-dots"></i></button></td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+{% else %}
+    {{ ui.empty('Aucune demande à afficher.') }}
+{% endif %}
