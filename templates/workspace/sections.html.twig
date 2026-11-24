@@ -72,7 +72,14 @@
                                         <button class="icon-button employee-action" type="button" title="Réinitialiser le mot de passe"
                                                 aria-label="Réinitialiser le mot de passe de {{ name }}"
                                                 data-modal-url="{{ path('workspace_action', {action:'mot-de-passe-collaborateur', id:row.id}) }}"><i class="bi bi-key" aria-hidden="true"></i></button>
+                                        <button class="icon-button employee-action employee-action-delete" type="button" aria-label="Supprimer {{ name }}"
+                                                title="{{ row.deletionBlock ?: 'Supprimer le collaborateur' }}"
+                                                {% if row.deletionBlock %}disabled aria-describedby="employee-delete-reason-{{ row.id }}"
+                                                {% else %}aria-haspopup="dialog" data-modal-url="{{ path('workspace_action', {action:'supprimer-collaborateur', id:row.id}) }}"{% endif %}>
+                                            <i class="bi bi-trash" aria-hidden="true"></i>
+                                        </button>
                                     </div>
+                                    {% if row.deletionBlock %}<p class="employee-delete-reason" id="employee-delete-reason-{{ row.id }}">{{ row.deletionBlock }}</p>{% endif %}
                                 </td>
                             </tr>
                         {% endfor %}

@@ -12,7 +12,7 @@ final class EmployeeChecker implements UserCheckerInterface
 {
     public function checkPreAuth(UserInterface $user): void
     {
-        if ($user instanceof Employee && (!$user->active || $user->archived)) {
+        if ($user instanceof Employee && (!$user->active || $user->archived || $user->deletedAt !== null)) {
             throw new CustomUserMessageAccountStatusException('Ce compte est désactivé.');
         }
     }

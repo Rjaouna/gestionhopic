@@ -10,7 +10,8 @@ use IntlDateFormatter;
 final readonly class Workspace
 {
     private const PEOPLE = 'SELECT e.id, e.first_name, e.last_name, e.email, e.code, e.job, e.phone, e.active,
-        e.archived, e.role, e.department_id, e.hired_on, e.left_on, d.name AS department
+        e.archived, e.deleted_at, e.role, e.department_id, e.hired_on, e.left_on, d.name AS department,
+        EXISTS (SELECT 1 FROM inventory_assignment a WHERE a.employee_id = e.id) AS has_inventory
         FROM employee e LEFT JOIN department d ON d.id = e.department_id';
     private const REQUESTS = 'SELECT r.*, e.first_name, e.last_name, e.department_id,
         d.name AS department, t.name AS type, t.tone, t.icon FROM leave_request r
@@ -79,7 +80,7 @@ final readonly class Workspace
     public function people(int $department = 0, bool $includeArchived = false): array
     {
         return $this->db->fetchAllAssociative(self::PEOPLE.'
-            WHERE (CAST(? AS INTEGER) = 1 OR e.archived = 0) AND (CAST(? AS INTEGER) = 0 OR e.department_id = ?)
+            WHERE e.deleted_at IS NULL AND (CAST(? AS INTEGER) = 1 OR e.archived = 0) AND (CAST(? AS INTEGER) = 0 OR e.department_id = ?)
             ORDER BY e.first_name, e.last_name, e.id', [(int) $includeArchived, $department, $department]);
     }
 

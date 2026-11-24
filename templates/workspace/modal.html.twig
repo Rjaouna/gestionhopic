@@ -3,7 +3,7 @@
 {% set labels = {
     'nouvelle':'Nouvelle demande', 'demande':'Détails de la demande', 'notifications':'Notifications',
     'collaborateur':id ? 'Modifier le collaborateur' : 'Ajouter un collaborateur',
-    'fiche-collaborateur':'Fiche collaborateur', 'mot-de-passe-collaborateur':'Réinitialiser le mot de passe',
+    'fiche-collaborateur':'Fiche collaborateur', 'mot-de-passe-collaborateur':'Réinitialiser le mot de passe', 'supprimer-collaborateur':'Supprimer le collaborateur',
     'service':id ? 'Modifier le service' : 'Ajouter un service', 'solde':'Ajuster un solde',
     'type':id ? 'Modifier le type d’absence' : 'Ajouter un type d’absence', 'compteur':id ? 'Modifier le compteur' : 'Ajouter un compteur',
     'horaire':'Modifier l’horaire de travail', 'ferie':id ? 'Modifier le jour férié' : 'Ajouter un jour férié',
@@ -16,7 +16,7 @@
 {% set icons = {
     'nouvelle':'calendar2-plus', 'demande':'calendar2-check', 'notifications':'bell',
     'collaborateur':id ? 'person-gear' : 'person-plus', 'fiche-collaborateur':'person-vcard',
-    'mot-de-passe-collaborateur':'key', 'service':'diagram-3', 'solde':'wallet2', 'type':'calendar2',
+    'mot-de-passe-collaborateur':'key', 'supprimer-collaborateur':'trash', 'service':'diagram-3', 'solde':'wallet2', 'type':'calendar2',
     'compteur':'wallet2', 'horaire':'clock', 'ferie':'flag', 'profil':'person-circle', 'regle-conges':'calendar2-check', 'article-ebp':'box-seam',
     'vider-bdd-ebp':'trash', 'assigner-inventaire':'clipboard-plus',
     'cloturer-affectation':'clipboard-check', 'rouvrir-affectation':'arrow-counterclockwise', 'cloturer-inventaire':'clipboard-check',
@@ -24,7 +24,7 @@
     'annuler-affectation-inventaire':'x-circle', 'annuler-inventaire':'x-circle'
 } %}
 {% set inventoryCancellation = action in ['annuler-affectation-inventaire', 'annuler-inventaire'] %}
-{% set frame = 'modal-frame' ~ (inventoryCancellation or action in ['mot-de-passe-collaborateur','notifications','profil','ferie','vider-bdd-ebp','terminer-reste-inventaire'] ? ' modal-frame-compact' : '') %}
+{% set frame = 'modal-frame' ~ (inventoryCancellation or action in ['mot-de-passe-collaborateur','supprimer-collaborateur','notifications','profil','ferie','vider-bdd-ebp','terminer-reste-inventaire'] ? ' modal-frame-compact' : '') %}
 {% set openingBalance = action == 'collaborateur' and not id and paidLeaveRule.counter_name is not null %}
 <header class="modal-header">
     <div class="{{ frame }} modal-heading">
@@ -187,6 +187,13 @@
                 {{ ui.passwordField('Confirmer le nouveau mot de passe', 'passwordConfirmation', 'Retapez le nouveau mot de passe', 'la confirmation') }}
                 {% if row.id == user.id %}<p class="muted mb-0">Vous devrez vous reconnecter avec le nouveau mot de passe.</p>{% endif %}
             </div>
+        {% elseif action == 'supprimer-collaborateur' %}
+            {% if deletionBlock %}
+                <p class="mb-0">{{ deletionBlock }}</p>
+            {% else %}
+                <p><strong>{{ row.first_name }} {{ row.last_name }}</strong> sera retiré de la liste des collaborateurs et son accès sera désactivé.</p>
+                <p class="muted mb-0">Les demandes, les soldes et le journal d’activité restent consultables.</p>
+            {% endif %}
         {% elseif action == 'collaborateur' %}
             <div class="form-stack">
                 <div class="form-grid">
@@ -306,7 +313,7 @@
     </div>
     <div class="modal-footer">
         <div class="{{ frame }} modal-actions">
-        <button type="button" class="btn btn-outline-tempo" data-bs-dismiss="modal">{{ inventoryCancellation ? 'Retour' : (action in ['vider-bdd-ebp', 'terminer-reste-inventaire'] ? 'Annuler' : 'Fermer') }}</button>
+        <button type="button" class="btn btn-outline-tempo" data-bs-dismiss="modal">{{ inventoryCancellation ? 'Retour' : (action in ['vider-bdd-ebp', 'terminer-reste-inventaire', 'supprimer-collaborateur'] ? 'Annuler' : 'Fermer') }}</button>
         {% if action == 'demande' %}
             {% if admin and row.status == 'pending' %}
                 <button class="btn btn-outline-danger" type="submit" name="transition" value="refuse">Refuser</button><button class="btn btn-tempo" type="submit" name="transition" value="approve">Accepter</button>
@@ -317,6 +324,8 @@
             {% if rows|filter(item => not item.read_at)|length %}<button class="btn btn-tempo" type="submit">Tout marquer comme lu</button>{% endif %}
         {% elseif action == 'mot-de-passe-collaborateur' %}
             <button class="btn btn-tempo" type="submit">Réinitialiser</button>
+        {% elseif action == 'supprimer-collaborateur' %}
+            {% if not deletionBlock %}<button class="btn btn-danger" type="submit"><i class="bi bi-trash" aria-hidden="true"></i> Confirmer la suppression</button>{% endif %}
         {% elseif action == 'vider-bdd-ebp' %}
             <button class="btn btn-danger" type="submit"><i class="bi bi-trash" aria-hidden="true"></i> Vider la BDD</button>
         {% elseif action == 'assigner-inventaire' %}

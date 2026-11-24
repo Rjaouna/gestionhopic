@@ -22,6 +22,7 @@ class Employee implements UserInterface, PasswordAuthenticatedUserInterface, Equ
     #[ORM\Column(length: 20)] public string $role = 'ROLE_USER';
     #[ORM\Column] public bool $active = true;
     #[ORM\Column] public bool $archived = false;
+    #[ORM\Column(length: 25, nullable: true)] public ?string $deletedAt = null;
     #[ORM\ManyToOne] public ?Department $department = null;
     #[ORM\ManyToOne] public ?WorkSchedule $schedule = null;
     #[ORM\Column(length: 10, nullable: true)] public ?string $hiredOn = null;
@@ -43,6 +44,7 @@ class Employee implements UserInterface, PasswordAuthenticatedUserInterface, Equ
             && $this->password === $user->password
             && $this->role === $user->role
             && $this->active === $user->active
-            && $this->archived === $user->archived;
+            && $this->archived === $user->archived
+            && $this->deletedAt === $user->deletedAt;
     }
 }

@@ -114,6 +114,9 @@ final class WorkspaceController extends AbstractController
         if (in_array($section, ['demandes', 'collaborateurs'], true)) {
             [$data['rows'], $data['pagination']] = $this->paginateRows($request, $data['rows']);
         }
+        if ($section === 'collaborateurs') {
+            $data['rows'] = array_map(fn (array $row): array => $row + ['deletionBlock' => $this->employeeDeletionBlock($row, $user->id)], $data['rows']);
+        }
         if ($section === 'planning') {
             $people = array_filter($this->workspace->people(department: $department), static fn (array $person) =>
                 $person['active'] && (!$employee || (int) $person['id'] === $employee));
@@ -242,6 +245,11 @@ final class WorkspaceController extends AbstractController
                     });
 
                     return $this->json(['message' => 'La BDD Articles EBP a été vidée.']);
+                }
+                if ($action === 'supprimer-collaborateur') {
+                    $this->deleteEmployee($id, $user);
+
+                    return $this->json(['message' => 'Le collaborateur a été supprimé de la liste et son accès est désactivé.']);
                 }
                 $input = $request->request->all();
                 $operation = $request->request->getString('operation');
@@ -448,7 +456,8 @@ final class WorkspaceController extends AbstractController
             'collaborateur' => ['row' => $id ? $this->employeeRecord($id) : [],
                 'departments' => $this->workspace->departments(), 'paidLeaveRule' => $id ? null : $this->accrual->rule()],
             'regle-conges' => ['rule' => $this->accrual->rule(), 'counters' => $this->workspace->counters(true)],
-            'fiche-collaborateur' => ['row' => $this->employeeRecord($id), 'schedule' => $this->calendar->schedule()],
+            'fiche-collaborateur' => ['row' => $this->employeeRecord($id, includeDeleted: true), 'schedule' => $this->calendar->schedule()],
+            'supprimer-collaborateur' => $this->employeeDeletionData($id, $user->id),
             'article-ebp' => ['row' => $this->catalog->article($id) ?: throw $this->createNotFoundException()],
             'assigner-inventaire' => $this->inventory->scopeOptions()
                 + ['people' => array_filter($this->workspace->people(), static fn (array $person) => $person['active'])],
@@ -498,9 +507,48 @@ final class WorkspaceController extends AbstractController
         });
     }
 
-    private function employeeRecord(int $id): array
+    private function employeeRecord(int $id, bool $includeDeleted = false): array
     {
-        return $this->workspace->person($id) ?: throw $this->createNotFoundException();
+        $row = $this->workspace->person($id);
+        if (!$row || (!$includeDeleted && $row['deleted_at'] !== null)) {
+            throw $this->createNotFoundException();
+        }
+
+        return $row;
+    }
+
+    private function employeeDeletionBlock(array $row, int $actor): ?string
+    {
+        return match (true) {
+            (int) $row['id'] === $actor => 'Vous ne pouvez pas supprimer votre propre compte.',
+            (bool) $row['has_inventory'] => 'Suppression bloquée par une affectation d’inventaire.',
+            default => null,
+        };
+    }
+
+    private function employeeDeletionData(int $id, int $actor): array
+    {
+        $row = $this->employeeRecord($id);
+
+        return ['row' => $row, 'deletionBlock' => $this->employeeDeletionBlock($row, $actor)];
+    }
+
+    private function deleteEmployee(int $id, Employee $actor): void
+    {
+        $this->db->transactional(function () use ($id, $actor): void {
+            // Serialize the check with inventory assignments and concurrent account updates.
+            $this->db->executeStatement('UPDATE employee SET id = id WHERE 0');
+            $administrator = $this->employeeRecord($actor->id);
+            if (!$administrator['active'] || $administrator['archived'] || $administrator['role'] !== 'ROLE_ADMIN') {
+                throw $this->createAccessDeniedException();
+            }
+            $data = $this->employeeDeletionData($id, $actor->id);
+            if ($data['deletionBlock'] !== null) {
+                throw new DomainException($data['deletionBlock']);
+            }
+            $this->db->update('employee', ['deleted_at' => date('Y-m-d H:i:s'), 'active' => 0, 'archived' => 1], ['id' => $id]);
+            $this->leaves->audit($actor->id, 'Collaborateur n°'.$id.' supprimé de la liste.');
+        });
     }
 
     private function viewableRequest(int $id): array
@@ -578,6 +626,10 @@ final class WorkspaceController extends AbstractController
             }
             if ($id && $action === 'compteur') {
                 if (!$this->db->update($table, $data, ['id' => $id, 'listed' => 1])) {
+                    throw $this->createNotFoundException();
+                }
+            } elseif ($id && $action === 'collaborateur') {
+                if (!$this->db->update($table, $data, ['id' => $id, 'deleted_at' => null])) {
                     throw $this->createNotFoundException();
                 }
             } elseif ($id) {
@@ -664,7 +716,9 @@ final class WorkspaceController extends AbstractController
         }
         $hash = $this->hashEmployeePassword($password);
         $this->db->transactional(function () use ($id, $actor, $hash) {
-            $this->db->update('employee', ['password' => $hash], ['id' => $id]);
+            if (!$this->db->update('employee', ['password' => $hash], ['id' => $id, 'deleted_at' => null])) {
+                throw $this->createNotFoundException();
+            }
             $this->leaves->audit($actor->id, 'Mot de passe réinitialisé pour le collaborateur n°'.$id.'.');
         });
     }

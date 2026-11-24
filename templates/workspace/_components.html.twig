@@ -51,7 +51,7 @@
 {% endmacro %}
 {% macro employeeStatus(row) %}
     <span class="status-badge tone-{{ row.active ? 'mint' : 'neutral' }}">
-        <span></span>{{ row.archived ? 'Archivé' : (row.active ? 'Actif' : 'Inactif') }}
+        <span></span>{{ row.deleted_at|default(null) is not null ? 'Supprimé' : (row.archived ? 'Archivé' : (row.active ? 'Actif' : 'Inactif')) }}
     </span>
 {% endmacro %}
 {% macro employeePicker(id, people) %}
