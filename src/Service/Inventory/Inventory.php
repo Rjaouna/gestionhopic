@@ -14,7 +14,8 @@ final readonly class Inventory
     private const int REOPEN_SECONDS = 300;
     private const string ASSIGNMENTS_FROM = ' FROM inventory_assignment a JOIN inventory_campaign c ON c.id = a.campaign_id
         JOIN employee e ON e.id = a.employee_id';
-    private const string EMPLOYEE_VISIBLE = 'a.employee_id = ? AND c.closed_at IS NULL AND (a.closed_at IS NULL OR a.closed_at > ?)';
+    private const string EMPLOYEE_VISIBLE = 'a.employee_id = ? AND c.closed_at IS NULL
+        AND (a.closed_at IS NULL OR (a.review_skipped_at IS NULL AND a.closed_at > ?))';
 
     public function __construct(private Connection $db, private EbpCsv $csv, private EbpCatalog $catalog)
     {
@@ -144,7 +145,7 @@ final readonly class Inventory
         $jobs = $this->assignments($where, $values, $pagination);
 
         return ['assignment' => null, 'assignments' => array_map(fn (array $job) => $job + [
-            'reopen_seconds' => $this->reopenSeconds((int) $job['closed_at'], $now),
+            'reopen_seconds' => $job['review_skipped_at'] === null ? $this->reopenSeconds((int) $job['closed_at'], $now) : 0,
         ], $jobs), 'pagination' => $pagination];
     }
 
@@ -182,7 +183,7 @@ final readonly class Inventory
             .self::ASSIGNMENTS_FROM.' WHERE a.id = ?'.$where, $values)
             ?: throw new NotFoundHttpException('Affectation introuvable.');
 
-        return $job + ['reopen_seconds' => $this->reopenSeconds((int) $job['closed_at'], $now)];
+        return $job + ['reopen_seconds' => $job['review_skipped_at'] === null ? $this->reopenSeconds((int) $job['closed_at'], $now) : 0];
     }
 
     public function assignedArticle(int $id, ?int $employee): array
@@ -257,7 +258,7 @@ final readonly class Inventory
             if (!$job['closed_at']) {
                 return false;
             }
-            $this->db->update('inventory_assignment', ['closed_at' => null], ['id' => $assignment]);
+            $this->db->update('inventory_assignment', ['closed_at' => null, 'review_skipped_at' => null], ['id' => $assignment]);
             $this->db->executeStatement('UPDATE inventory_line SET version = version + 1 WHERE assignment_id = ?', [$assignment]);
 
             return true;
@@ -303,7 +304,7 @@ final readonly class Inventory
                 return false;
             }
             $progress = $this->stats($campaign);
-            if (!$progress['total'] || $progress['remaining'] || $progress['openAssignments']) {
+            if (!$progress['readyToClose']) {
                 throw new DomainException('Terminez le comptage de tous les articles et clôturez toutes les affectations.');
             }
             if ($progress['reviewUntil']) {
@@ -312,6 +313,30 @@ final readonly class Inventory
             $this->db->update('inventory_campaign', ['closed_at' => time()], ['id' => $campaign]);
 
             return true;
+        });
+    }
+
+    public function skipReviewDelay(int $campaign, int $expectedDeadline): bool
+    {
+        return $this->db->transactional(function () use ($campaign, $expectedDeadline): bool {
+            $this->writeLock();
+            if ($this->campaign($campaign)['closed_at']) {
+                return false;
+            }
+            $progress = $this->stats($campaign);
+            if (!$progress['readyToClose']) {
+                throw new DomainException('Terminez le comptage et clôturez les affectations avant d’annuler le délai.');
+            }
+            if ($progress['reviewUntil'] === null) {
+                return false;
+            }
+            if ($progress['reviewUntil'] !== $expectedDeadline) {
+                throw new DomainException('Le délai a changé. Rouvrez la confirmation pour vérifier le délai actuel.');
+            }
+            $now = time();
+
+            return $this->db->executeStatement('UPDATE inventory_assignment SET review_skipped_at = ?
+                WHERE campaign_id = ? AND review_skipped_at IS NULL AND closed_at > ?', [$now, $campaign, $now - self::REOPEN_SECONDS]) > 0;
         });
     }
 
@@ -358,15 +383,16 @@ final readonly class Inventory
             FROM inventory_line WHERE campaign_id = ?', [$campaign]);
         $counts = array_map('intval', $counts);
         $status = $this->db->fetchAssociative('SELECT count(CASE WHEN closed_at IS NULL THEN 1 END) AS open,
-            max(closed_at) AS last_close FROM inventory_assignment WHERE campaign_id = ?', [$campaign]);
+            max(CASE WHEN review_skipped_at IS NULL THEN closed_at END) AS last_close FROM inventory_assignment WHERE campaign_id = ?', [$campaign]);
         $open = (int) $status['open'];
         $now = time();
         $reviewSeconds = $this->reopenSeconds((int) $status['last_close'], $now);
+        $readyToClose = $counts['total'] > 0 && $counts['finished'] === $counts['total'] && $open === 0;
 
         return $counts + [
             'remaining' => $counts['total'] - $counts['finished'], 'unassigned' => $counts['total'] - $counts['assigned'],
             'openAssignments' => $open, 'reviewUntil' => $reviewSeconds ? $now + $reviewSeconds : null,
-            'canClose' => $counts['total'] > 0 && $counts['finished'] === $counts['total'] && $open === 0 && !$reviewSeconds,
+            'readyToClose' => $readyToClose, 'canClose' => $readyToClose && !$reviewSeconds,
         ];
     }
 

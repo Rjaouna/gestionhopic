@@ -309,6 +309,19 @@ final class WorkspaceController extends AbstractController
 
                     return $this->json(['message' => 'L’inventaire a été clôturé. Le CSV est disponible.']);
                 }
+                if ($action === 'annuler-delai-inventaire') {
+                    $deadline = $request->request->getInt('delai');
+                    $skipped = $this->db->transactional(function () use ($id, $user, $deadline): bool {
+                        $skipped = $this->inventory->skipReviewDelay($id, $deadline);
+                        if ($skipped) {
+                            $this->leaves->audit($user->id, 'Délai de correction annulé pour l’inventaire n°'.$id.'.');
+                        }
+
+                        return $skipped;
+                    });
+
+                    return $this->json(['message' => $skipped ? 'Délai annulé. Vous pouvez clôturer l’inventaire.' : 'Le délai de correction est déjà terminé.']);
+                }
                 if ($action === 'annuler-affectation-inventaire') {
                     $this->db->transactional(function () use ($id, $user): void {
                         $this->inventory->cancelAssignment($id);
@@ -466,6 +479,7 @@ final class WorkspaceController extends AbstractController
             'cloturer-affectation', 'rouvrir-affectation' => ['assignment' => $this->inventory->assignment($id, $admin ? null : $user->id)],
             'terminer-reste-inventaire' => ['zeroPreview' => $this->inventory->zeroPreview($id, $admin ? null : $user->id)],
             'cloturer-inventaire' => ['campaign' => $this->inventory->campaign($id)],
+            'annuler-delai-inventaire' => ['campaign' => $this->inventory->campaign($id), 'inventoryStats' => $this->inventory->stats($id)],
             'annuler-affectation-inventaire' => ['assignment' => $this->inventory->cancellableAssignment($id)],
             'annuler-inventaire' => ['campaign' => $this->inventory->campaign($id)],
             'vider-bdd-ebp' => $id ? throw $this->createNotFoundException()

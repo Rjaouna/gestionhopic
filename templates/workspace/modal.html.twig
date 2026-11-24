@@ -11,7 +11,7 @@
     'vider-bdd-ebp':'Vider la BDD Articles EBP', 'assigner-inventaire':'Assigner un inventaire',
     'cloturer-affectation':'Clôturer mon inventaire', 'rouvrir-affectation':'Rouvrir mon inventaire', 'cloturer-inventaire':'Clôturer l’inventaire',
     'terminer-reste-inventaire':'Terminer le reste à 0',
-    'annuler-affectation-inventaire':'Annuler l’affectation', 'annuler-inventaire':'Annuler l’inventaire'
+    'annuler-affectation-inventaire':'Annuler l’affectation', 'annuler-inventaire':'Annuler l’inventaire', 'annuler-delai-inventaire':'Annuler le délai de correction'
 } %}
 {% set icons = {
     'nouvelle':'calendar2-plus', 'demande':'calendar2-check', 'notifications':'bell',
@@ -21,10 +21,11 @@
     'vider-bdd-ebp':'trash', 'assigner-inventaire':'clipboard-plus',
     'cloturer-affectation':'clipboard-check', 'rouvrir-affectation':'arrow-counterclockwise', 'cloturer-inventaire':'clipboard-check',
     'terminer-reste-inventaire':'list-check',
-    'annuler-affectation-inventaire':'x-circle', 'annuler-inventaire':'x-circle'
+    'annuler-affectation-inventaire':'x-circle', 'annuler-inventaire':'x-circle', 'annuler-delai-inventaire':'clock-history'
 } %}
 {% set inventoryCancellation = action in ['annuler-affectation-inventaire', 'annuler-inventaire'] %}
-{% set frame = 'modal-frame' ~ (inventoryCancellation or action in ['mot-de-passe-collaborateur','supprimer-collaborateur','notifications','profil','ferie','vider-bdd-ebp','terminer-reste-inventaire'] ? ' modal-frame-compact' : '') %}
+{% set frame = 'modal-frame' ~ (inventoryCancellation or action in ['mot-de-passe-collaborateur','supprimer-collaborateur','notifications','profil','ferie','vider-bdd-ebp','terminer-reste-inventaire','annuler-delai-inventaire'] ? ' modal-frame-compact' : '') %}
+{% set canSkipDelay = action == 'annuler-delai-inventaire' and not campaign.closed_at and inventoryStats.readyToClose and inventoryStats.reviewUntil %}
 {% set openingBalance = action == 'collaborateur' and not id and paidLeaveRule.counter_name is not null %}
 <header class="modal-header">
     <div class="{{ frame }} modal-heading">
@@ -75,6 +76,13 @@
             {% endif %}
         {% elseif action == 'cloturer-inventaire' %}
             <p class="mb-0">Confirmez la clôture de <strong>{{ campaign.name }}</strong> pour figer les quantités inventoriées et rendre l’export EBP disponible.</p>
+        {% elseif action == 'annuler-delai-inventaire' %}
+            {% if canSkipDelay %}
+                <input type="hidden" name="delai" value="{{ inventoryStats.reviewUntil }}">
+                <p class="mb-0">Le délai de correction de <strong>{{ campaign.name }}</strong> prendra fin immédiatement. Vous pourrez clôturer l’inventaire, et la réouverture sera réservée à l’administration.</p>
+            {% else %}
+                <p class="mb-0">L’annulation du délai n’est plus disponible pour cet inventaire.</p>
+            {% endif %}
         {% elseif action == 'annuler-affectation-inventaire' %}
             <p>L’affectation de <strong>{{ assignment.first_name }} {{ assignment.last_name }}</strong> sera retirée de la liste et de son espace.</p>
             <p class="inventory-progress-message tone-amber">Les comptages du périmètre <strong>{{ inventory.scope(assignment) }}</strong> seront supprimés. {{ assignment.total == 1 ? 'L’article pourra être réattribué' : 'Les ' ~ assignment.total|number_format(0, ',', ' ') ~ ' articles pourront être réattribués' }}.</p>
@@ -336,6 +344,8 @@
             <button class="btn btn-tempo" type="submit" data-inventory-wizard-target="confirm" hidden>Confirmer l’affectation</button>
         {% elseif action in ['cloturer-affectation', 'cloturer-inventaire'] %}
             <button class="btn btn-tempo" type="submit">Confirmer la clôture</button>
+        {% elseif action == 'annuler-delai-inventaire' %}
+            {% if canSkipDelay %}<button class="btn btn-tempo" type="submit">Confirmer l’annulation du délai</button>{% endif %}
         {% elseif action == 'rouvrir-affectation' %}
             {% if assignment.closed_at and not assignment.campaign_closed %}<button class="btn btn-tempo" type="submit">Confirmer la réouverture</button>{% endif %}
         {% elseif action == 'terminer-reste-inventaire' %}

@@ -52,8 +52,12 @@
                     <p class="inventory-progress-message tone-amber"><strong>Inventaire incomplet.</strong> {{ inventoryStats.remaining|number_format(0, ',', ' ') }} {{ inventoryStats.remaining == 1 ? 'article à terminer' : 'articles à terminer' }}, dont {{ inventoryStats.unassigned|number_format(0, ',', ' ') }} {{ inventoryStats.unassigned == 1 ? 'non affecté' : 'non affectés' }}.</p>
                 {% elseif inventoryStats.openAssignments %}
                     <p class="inventory-progress-message tone-blue">Tous les articles sont comptés. {{ inventoryStats.openAssignments }} {{ inventoryStats.openAssignments == 1 ? 'affectation doit encore être clôturée' : 'affectations doivent encore être clôturées' }}.</p>
-                {% elseif inventoryStats.reviewUntil %}
-                    <p class="inventory-progress-message tone-blue">Tous les articles sont comptés. La clôture finale sera disponible à {{ inventoryStats.reviewUntil|date('H:i:s') }}, à la fin du délai de correction.</p>
+                {% elseif inventoryStats.readyToClose and inventoryStats.reviewUntil %}
+                    <p class="inventory-progress-message tone-blue">
+                        <button type="button" class="record-link record-underline text-nowrap me-2" aria-haspopup="dialog"
+                                data-modal-url="{{ path('workspace_action', {action:'annuler-delai-inventaire', id:campaign.id}) }}">Annuler ce délai</button>
+                        Tous les articles sont comptés. La clôture finale sera disponible à {{ inventoryStats.reviewUntil|date('H:i:s') }}, à la fin du délai de correction.
+                    </p>
                 {% else %}
                     <p class="inventory-progress-message tone-mint">Tous les articles sont comptés et toutes les affectations sont clôturées.</p>
                 {% endif %}
