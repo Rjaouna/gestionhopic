@@ -11,7 +11,8 @@
     'vider-bdd-ebp':'Vider la BDD Articles EBP', 'assigner-inventaire':'Assigner un inventaire',
     'cloturer-affectation':'Clôturer mon inventaire', 'rouvrir-affectation':'Rouvrir mon inventaire', 'cloturer-inventaire':'Clôturer l’inventaire',
     'terminer-reste-inventaire':'Terminer le reste à 0',
-    'annuler-affectation-inventaire':'Annuler l’affectation', 'annuler-inventaire':'Annuler l’inventaire', 'annuler-delai-inventaire':'Annuler le délai de correction'
+    'annuler-affectation-inventaire':'Annuler l’affectation', 'annuler-inventaire':'Annuler l’inventaire', 'annuler-delai-inventaire':'Annuler le délai de correction',
+    'archiver-affectation-inventaire':'Archiver l’affectation', 'supprimer-affectation-inventaire':'Supprimer l’affectation archivée'
 } %}
 {% set icons = {
     'nouvelle':'calendar2-plus', 'demande':'calendar2-check', 'notifications':'bell',
@@ -21,10 +22,14 @@
     'vider-bdd-ebp':'trash', 'assigner-inventaire':'clipboard-plus',
     'cloturer-affectation':'clipboard-check', 'rouvrir-affectation':'arrow-counterclockwise', 'cloturer-inventaire':'clipboard-check',
     'terminer-reste-inventaire':'list-check',
-    'annuler-affectation-inventaire':'x-circle', 'annuler-inventaire':'x-circle', 'annuler-delai-inventaire':'clock-history'
+    'annuler-affectation-inventaire':'x-circle', 'annuler-inventaire':'x-circle', 'annuler-delai-inventaire':'clock-history',
+    'archiver-affectation-inventaire':'archive', 'supprimer-affectation-inventaire':'trash'
 } %}
 {% set inventoryCancellation = action in ['annuler-affectation-inventaire', 'annuler-inventaire'] %}
-{% set frame = 'modal-frame' ~ (inventoryCancellation or action in ['mot-de-passe-collaborateur','supprimer-collaborateur','notifications','profil','ferie','vider-bdd-ebp','terminer-reste-inventaire','annuler-delai-inventaire'] ? ' modal-frame-compact' : '') %}
+{% set archiveAction = action in ['archiver-affectation-inventaire', 'supprimer-affectation-inventaire'] %}
+{% set deleteArchive = action == 'supprimer-affectation-inventaire' %}
+{% set canChangeArchive = archiveAction and assignment.campaign_closed and assignment.closed_at and (deleteArchive ? assignment.archived_at is not null : assignment.archived_at is null) %}
+{% set frame = 'modal-frame' ~ (inventoryCancellation or archiveAction or action in ['mot-de-passe-collaborateur','supprimer-collaborateur','notifications','profil','ferie','vider-bdd-ebp','terminer-reste-inventaire','annuler-delai-inventaire'] ? ' modal-frame-compact' : '') %}
 {% set canSkipDelay = action == 'annuler-delai-inventaire' and not campaign.closed_at and inventoryStats.readyToClose and inventoryStats.reviewUntil %}
 {% set openingBalance = action == 'collaborateur' and not id and paidLeaveRule.counter_name is not null %}
 <header class="modal-header">
@@ -75,7 +80,7 @@
                 <p class="mb-0">Tous les articles sont déjà terminés. Vous pouvez clôturer votre inventaire.</p>
             {% endif %}
         {% elseif action == 'cloturer-inventaire' %}
-            <p class="mb-0">Confirmez la clôture de <strong>{{ campaign.name }}</strong> pour figer les quantités inventoriées et rendre l’export EBP disponible.</p>
+            <p class="mb-0">Confirmez la clôture de <strong>{{ campaign.name }}</strong> pour figer les quantités des articles affectés et les exporter vers EBP. Les articles non affectés restent disponibles pour un prochain inventaire.</p>
         {% elseif action == 'annuler-delai-inventaire' %}
             {% if canSkipDelay %}
                 <input type="hidden" name="delai" value="{{ inventoryStats.reviewUntil }}">
@@ -86,6 +91,17 @@
         {% elseif action == 'annuler-affectation-inventaire' %}
             <p>L’affectation de <strong>{{ assignment.first_name }} {{ assignment.last_name }}</strong> sera retirée de la liste et de son espace.</p>
             <p class="inventory-progress-message tone-amber">Les comptages du périmètre <strong>{{ inventory.scope(assignment) }}</strong> seront supprimés. {{ assignment.total == 1 ? 'L’article pourra être réattribué' : 'Les ' ~ assignment.total|number_format(0, ',', ' ') ~ ' articles pourront être réattribués' }}.</p>
+        {% elseif archiveAction %}
+            {% if canChangeArchive %}
+                <p><strong>{{ assignment.name }}</strong> · {{ assignment.first_name }} {{ assignment.last_name }} · {{ inventory.scope(assignment) }}</p>
+                {% if deleteArchive %}
+                    <p class="inventory-progress-message tone-amber">La suppression est définitive. Les comptages de cette affectation seront effacés de l’historique et des prochains exports EBP.</p>
+                {% else %}
+                    <p class="mb-0">Cette affectation sera déplacée dans les archives. Ses comptages resteront consultables et exportables.</p>
+                {% endif %}
+            {% else %}
+                <p class="mb-0">{{ deleteArchive ? 'Archivez l’affectation avant de la supprimer.' : (assignment.archived_at ? 'Cette affectation est déjà archivée.' : 'Clôturez l’inventaire avant d’archiver cette affectation.') }}</p>
+            {% endif %}
         {% elseif action == 'annuler-inventaire' %}
             {% if campaign.closed_at %}
                 <p class="mb-0">Cet inventaire est clôturé.</p>
@@ -350,6 +366,10 @@
             {% if assignment.closed_at and not assignment.campaign_closed %}<button class="btn btn-tempo" type="submit">Confirmer la réouverture</button>{% endif %}
         {% elseif action == 'terminer-reste-inventaire' %}
             {% if zeroPreview.remaining %}<button class="btn btn-tempo" type="submit">Confirmer la mise à zéro</button>{% endif %}
+        {% elseif archiveAction %}
+            {% if canChangeArchive %}
+                <button class="btn {{ deleteArchive ? 'btn-danger' : 'btn-tempo' }}" type="submit"><i class="bi bi-{{ icons[action] }}" aria-hidden="true"></i> {{ deleteArchive ? 'Supprimer définitivement' : 'Confirmer l’archivage' }}</button>
+            {% endif %}
         {% elseif inventoryCancellation %}
             {% if action == 'annuler-affectation-inventaire' or not campaign.closed_at %}
                 <button class="btn btn-danger" type="submit">Confirmer l’annulation</button>

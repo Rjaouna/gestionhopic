@@ -68,15 +68,23 @@ final class InventoryController extends AbstractController
     #[IsGranted('ROLE_ADMIN')]
     public function export(int $id, Inventory $inventory): Response
     {
-        if (!$inventory->campaign($id)['closed_at']) {
+        $rows = $inventory->exportRows($id);
+        // Read the campaign status and its counts from the same cursor, even during a deletion.
+        $first = $rows->current();
+        if ($first === null) {
+            throw $this->createNotFoundException('Inventaire introuvable.');
+        }
+        if (!$first['closed_at']) {
             return new Response('Clôturez l’inventaire avant de l’exporter.', 409);
         }
-        $response = new StreamedResponse(static function () use ($inventory, $id): void {
+        $response = new StreamedResponse(static function () use ($rows): void {
             $output = fopen('php://output', 'wb');
             fwrite($output, "\xEF\xBB\xBF");
             fputcsv($output, ['UniqueId', 'RealStock'], ';', '"', '');
-            foreach ($inventory->exportRows($id) as $row) {
-                fputcsv($output, [$row['unique_id'], $row['counted_quantity']], ';', '"', '');
+            foreach ($rows as $row) {
+                if ($row['unique_id'] !== null) {
+                    fputcsv($output, [$row['unique_id'], $row['counted_quantity']], ';', '"', '');
+                }
             }
             fclose($output);
         }, headers: ['Content-Type' => 'text/csv; charset=UTF-8']);

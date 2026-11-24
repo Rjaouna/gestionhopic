@@ -34,10 +34,10 @@
             <div id="inventory-campaign-progress" data-inventory-live-target="content" class="inventory-campaign-progress">
                 <dl class="inventory-metrics inventory-progress-metrics mb-0">
                     {% for metric in [
-                        ['Articles', inventoryStats.total, 'boxes', 'blue'],
                         ['Affectés', inventoryStats.assigned, 'people', 'violet'],
                         ['En comptage', inventoryStats.counting, 'pencil', 'amber'],
-                        ['Terminés', inventoryStats.finished, 'check2-circle', 'mint']
+                        ['Terminés', inventoryStats.finished, 'check2-circle', 'mint'],
+                        ['Non affectés', inventoryStats.unassigned, 'boxes', 'blue']
                     ] %}
                         <div class="inventory-metric">
                             <span class="metric-icon tone-{{ metric[3] }}"><i class="bi bi-{{ metric[2] }}" aria-hidden="true"></i></span>
@@ -45,21 +45,23 @@
                         </div>
                     {% endfor %}
                 </dl>
-                <progress class="inventory-progress" max="{{ max(1, inventoryStats.total) }}" value="{{ inventoryStats.finished }}" aria-label="Articles terminés"></progress>
+                <progress class="inventory-progress" max="{{ max(1, inventoryStats.assigned) }}" value="{{ inventoryStats.finished }}" aria-label="Avancement des articles affectés"></progress>
                 {% if campaign.closed_at %}
                     <p class="inventory-progress-message tone-mint">Inventaire clôturé le {{ campaign.closed_at|date('d/m/Y') }}. Le fichier EBP est disponible.</p>
+                {% elseif not inventoryStats.assigned %}
+                    <p class="inventory-progress-message tone-blue">Ajoutez une affectation pour démarrer le comptage.</p>
                 {% elseif inventoryStats.remaining %}
-                    <p class="inventory-progress-message tone-amber"><strong>Inventaire incomplet.</strong> {{ inventoryStats.remaining|number_format(0, ',', ' ') }} {{ inventoryStats.remaining == 1 ? 'article à terminer' : 'articles à terminer' }}, dont {{ inventoryStats.unassigned|number_format(0, ',', ' ') }} {{ inventoryStats.unassigned == 1 ? 'non affecté' : 'non affectés' }}.</p>
+                    <p class="inventory-progress-message tone-amber"><strong>Comptage en cours.</strong> {{ inventoryStats.remaining|number_format(0, ',', ' ') }} {{ inventoryStats.remaining == 1 ? 'article affecté à terminer' : 'articles affectés à terminer' }}.</p>
                 {% elseif inventoryStats.openAssignments %}
-                    <p class="inventory-progress-message tone-blue">Tous les articles sont comptés. {{ inventoryStats.openAssignments }} {{ inventoryStats.openAssignments == 1 ? 'affectation doit encore être clôturée' : 'affectations doivent encore être clôturées' }}.</p>
+                    <p class="inventory-progress-message tone-blue">Tous les articles affectés sont comptés. {{ inventoryStats.openAssignments }} {{ inventoryStats.openAssignments == 1 ? 'affectation doit encore être clôturée' : 'affectations doivent encore être clôturées' }}.</p>
                 {% elseif inventoryStats.readyToClose and inventoryStats.reviewUntil %}
                     <p class="inventory-progress-message tone-blue">
                         <button type="button" class="record-link record-underline text-nowrap me-2" aria-haspopup="dialog"
                                 data-modal-url="{{ path('workspace_action', {action:'annuler-delai-inventaire', id:campaign.id}) }}">Annuler ce délai</button>
-                        Tous les articles sont comptés. La clôture finale sera disponible à {{ inventoryStats.reviewUntil|date('H:i:s') }}, à la fin du délai de correction.
+                        Tous les articles affectés sont comptés. La clôture finale sera disponible à {{ inventoryStats.reviewUntil|date('H:i:s') }}, à la fin du délai de correction.
                     </p>
                 {% else %}
-                    <p class="inventory-progress-message tone-mint">Tous les articles sont comptés et toutes les affectations sont clôturées.</p>
+                    <p class="inventory-progress-message tone-mint">Toutes les affectations sont clôturées. Vous pouvez finaliser cet inventaire.</p>
                 {% endif %}
             </div>
         </section>

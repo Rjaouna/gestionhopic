@@ -15,4 +15,5 @@ class InventoryAssignment
     #[ORM\Column] public int $assignedAt;
     #[ORM\Column(nullable: true)] public ?int $closedAt = null;
     #[ORM\Column(nullable: true)] public ?int $reviewSkippedAt = null;
+    #[ORM\Column(nullable: true)] public ?int $archivedAt = null;
 }

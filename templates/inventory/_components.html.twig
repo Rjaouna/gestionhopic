@@ -6,11 +6,9 @@
 {% endmacro %}
 
 {% macro assignmentStatus(row) %}
-    {% if row.campaign_closed %}<span class="status-badge tone-mint"><span></span>Finalisée</span>
-    {% elseif row.closed_at %}<span class="status-badge tone-mint"><span></span>Clôturée</span>
-    {% elseif row.finished == row.total %}<span class="status-badge tone-blue"><span></span>À clôturer</span>
-    {% elseif row.counting or row.finished %}<span class="status-badge tone-amber"><span></span>En cours</span>
-    {% else %}<span class="status-badge tone-neutral"><span></span>Attribuée</span>{% endif %}
+    {% set labels = constant('App\\Service\\Inventory\\Inventory::ASSIGNMENT_STATUSES') %}
+    {% set tones = {'finalisee':'mint', 'cloturee':'mint', 'a-cloturer':'blue', 'en-cours':'amber', 'attribuee':'neutral'} %}
+    <span class="status-badge tone-{{ row.archived_at ? 'neutral' : tones[row.assignment_status] }}"><span></span>{{ row.archived_at ? 'Archivée' : labels[row.assignment_status] }}</span>
 {% endmacro %}
 
 {% macro responsibility(row, linked = false) %}

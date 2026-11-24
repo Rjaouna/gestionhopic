@@ -1,21 +1,35 @@
 {% import 'workspace/_components.html.twig' as ui %}
 {% import 'inventory/_components.html.twig' as inventory %}
 {% set route = admin ? 'admin_inventory' : 'employee_section' %}
+{% set archives = admin and (inventoryArchives|default(false) or (assignment.archived_at ?? false)) %}
 <div class="page-heading">
     <div>
-        <h1>{{ assignment ? assignment.name : titles[section] }}</h1>
+        <h1>{{ assignment ? assignment.name : (archives ? 'Archives des inventaires' : titles[section]) }}</h1>
         {% if assignment %}
             <div class="inventory-meta">{{ inventory.responsibility(assignment, admin) }}{{ inventory.scopeBadges(assignment) }}{{ inventory.articleBadge(assignmentStats.total) }}</div>
         {% else %}
-            <p>{{ admin ? 'Consultez les affectations et reprenez un comptage si nécessaire.' : 'Retrouvez les articles qui vous ont été confiés pour le comptage.' }}</p>
+            <p>{% if archives %}Consultez ou supprimez les affectations archivées.{% elseif admin %}Consultez les affectations et reprenez un comptage si nécessaire.{% else %}Retrouvez les articles qui vous ont été confiés pour le comptage.{% endif %}</p>
         {% endif %}
     </div>
-    {% if assignment %}<a class="btn btn-outline-tempo" data-nav href="{{ path(route, {section:section}) }}"><i class="bi bi-arrow-left" aria-hidden="true"></i> {{ titles[section] }}</a>{% endif %}
+    {% if assignment %}
+        <a class="btn btn-outline-tempo" data-nav href="{{ path(route, {section:section, archives:archives ? 1 : null}) }}"><i class="bi bi-arrow-left" aria-hidden="true"></i> {{ archives ? 'Archives' : titles[section] }}</a>
+    {% elseif admin %}
+        <a class="btn btn-outline-tempo" data-nav href="{{ path(route, {section:section, archives:archives ? null : 1}) }}"><i class="bi bi-{{ archives ? 'arrow-left' : 'archive' }}" aria-hidden="true"></i> {{ archives ? titles[section] : 'Archives' }}</a>
+    {% endif %}
 </div>
 {% if not assignment %}
     {% if admin %}
-        <form class="card filters-bar inventory-filters" method="get" action="{{ path(route, {section:section}) }}" data-filter>
+        <form class="card filters-bar inventory-filters" method="get" action="{{ path(route, {section:section}) }}" data-filter data-auto-filter>
             <label class="search-control"><i class="bi bi-search" aria-hidden="true"></i><input class="form-control" name="q" aria-label="Rechercher un inventaire" maxlength="160" placeholder="Inventaire, collaborateur, catégorie, marque…" value="{{ search }}" data-live-search></label>
+            {% if archives %}
+                <input type="hidden" name="archives" value="1">
+            {% else %}
+                {% set statuses = constant('App\\Service\\Inventory\\Inventory::ASSIGNMENT_STATUSES') %}
+                <select class="form-select" name="statut" aria-label="Filtrer par statut">
+                    <option value="">Tous les statuts</option>
+                    {% for value, label in statuses %}<option value="{{ value }}" {{ inventoryStatus == value ? 'selected' }}>{{ label }}</option>{% endfor %}
+                </select>
+            {% endif %}
         </form>
     {% endif %}
     <div data-controller="{{ admin ? 'inventory-live' : 'inventory-deadline' }}">
@@ -34,17 +48,26 @@
                     <div class="heading-actions">
                         {{ inventory.assignmentStatus(job) }}
                         {% if countdown %}{{ inventory.countdown(job.reopen_seconds) }}{% endif %}
-                        {% if admin and job.closed_at and not job.campaign_closed %}
+                        {% if admin and job.assignment_status == 'cloturee' %}
                             <button class="btn btn-outline-tempo" type="button" data-modal-url="{{ path('workspace_action', {action:'rouvrir-affectation', id:job.id}) }}"><i class="bi bi-arrow-counterclockwise" aria-hidden="true"></i> Rouvrir</button>
                         {% endif %}
                         <a class="btn btn-outline-tempo" data-nav href="{{ path(route, {section:section, affectation:job.id}) }}">{{ admin and not job.closed_at and not job.campaign_closed ? 'Traiter' : 'Ouvrir' }} <i class="bi bi-chevron-right" aria-hidden="true"></i></a>
+                        {% if admin and job.assignment_status == 'finalisee' %}
+                            {% set action = archives ? 'supprimer-affectation-inventaire' : 'archiver-affectation-inventaire' %}
+                            {% set label = archives ? 'Supprimer l’affectation archivée' : 'Archiver l’affectation' %}
+                            <button class="icon-button {{ archives ? 'inventory-cancel-button' : '' }}" type="button" aria-haspopup="dialog"
+                                    aria-label="{{ label }} pour {{ job.first_name }} {{ job.last_name }}" title="{{ label }}"
+                                    data-modal-url="{{ path('workspace_action', {action:action, id:job.id}) }}"><i class="bi bi-{{ archives ? 'trash' : 'archive' }}" aria-hidden="true"></i></button>
+                        {% endif %}
                     </div>
                 </article>
             {% endfor %}
         </div>
         {% include 'workspace/_pagination.html.twig' with {paginationLabel:'Pagination de la liste des inventaires'} %}
     {% else %}
-        <section class="card">{{ ui.empty(search ? 'Aucun inventaire ne correspond à la recherche.' : (admin ? 'Aucun inventaire n’a été assigné.' : 'Aucun inventaire ne vous est attribué.'), 'clipboard-check') }}</section>
+        {% set filtered = search or inventoryStatus %}
+        {% set emptyMessage = filtered ? 'Aucun inventaire ne correspond aux filtres.' : (archives ? 'Aucun inventaire archivé.' : (admin ? 'Aucun inventaire à afficher.' : 'Aucun inventaire ne vous est attribué.')) %}
+        <section class="card">{{ ui.empty(emptyMessage, archives ? 'archive' : 'clipboard-check') }}</section>
     {% endif %}
     </div>
     </div>

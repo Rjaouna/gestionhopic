@@ -101,7 +101,8 @@ final class WorkspaceController extends AbstractController
                 $request->query->getString('statut'), $request->query->getInt('page', 1)),
             'liste', 'inventaires' => $assignment
                 ? $this->inventory->assignmentView($assignment, $admin ? null : $user->id, $search, $request->query->getInt('page', 1))
-                : $this->inventory->assignmentList($admin ? null : $user->id, $search, $request->query->getInt('page', 1)),
+                : $this->inventory->assignmentList($admin ? null : $user->id, $search, $request->query->getInt('page', 1),
+                    $status, $admin && $request->query->getBoolean('archives')),
             'soldes' => ['balances' => $this->filterPeople($this->workspace->balances($employee), $search)],
             'rapports' => $this->workspace->dashboard($today, $months, $department),
             'parametres' => [
@@ -330,6 +331,19 @@ final class WorkspaceController extends AbstractController
 
                     return $this->json(['message' => 'L’affectation a été supprimée. Ses articles peuvent être réattribués.']);
                 }
+                if (in_array($action, ['archiver-affectation-inventaire', 'supprimer-affectation-inventaire'], true)) {
+                    $delete = $action === 'supprimer-affectation-inventaire';
+                    $this->db->transactional(function () use ($delete, $id, $user): void {
+                        if ($delete) {
+                            $this->inventory->deleteArchivedAssignment($id);
+                            $this->leaves->audit($user->id, 'Affectation d’inventaire n°'.$id.' supprimée définitivement.');
+                        } elseif ($this->inventory->archiveAssignment($id)) {
+                            $this->leaves->audit($user->id, 'Affectation d’inventaire n°'.$id.' archivée.');
+                        }
+                    });
+
+                    return $this->json(['message' => $delete ? 'L’affectation a été supprimée.' : 'L’affectation est disponible dans les archives.']);
+                }
                 if ($action === 'annuler-inventaire') {
                     $this->db->transactional(function () use ($id, $user): void {
                         $this->inventory->cancelCampaign($id);
@@ -481,6 +495,7 @@ final class WorkspaceController extends AbstractController
             'cloturer-inventaire' => ['campaign' => $this->inventory->campaign($id)],
             'annuler-delai-inventaire' => ['campaign' => $this->inventory->campaign($id), 'inventoryStats' => $this->inventory->stats($id)],
             'annuler-affectation-inventaire' => ['assignment' => $this->inventory->cancellableAssignment($id)],
+            'archiver-affectation-inventaire', 'supprimer-affectation-inventaire' => ['assignment' => $this->inventory->assignment($id, null)],
             'annuler-inventaire' => ['campaign' => $this->inventory->campaign($id)],
             'vider-bdd-ebp' => $id ? throw $this->createNotFoundException()
                 : ['storedArticles' => (int) $this->db->fetchOne('SELECT count(*) FROM ebp_article'), 'catalogueClearBlock' => $this->ebp->clearCatalogueBlock()],

@@ -108,10 +108,14 @@ final readonly class EbpCatalog
         if (!$articles) {
             return [];
         }
-        $counts = $this->db->fetchAllAssociativeIndexed("SELECT l.unique_id, coalesce(l.counted_quantity, '0') AS counted_quantity,
-            (l.assignment_id IS NOT NULL AND c.closed_at IS NULL) AS inventory_active
-            FROM inventory_line l JOIN inventory_campaign c ON c.id = l.campaign_id
-            WHERE l.campaign_id = (SELECT max(id) FROM inventory_campaign) AND l.unique_id IN (?)",
+        $counts = $this->db->fetchAllAssociativeIndexed("SELECT article.unique_id, coalesce(l.counted_quantity, '0') AS counted_quantity,
+            (c.closed_at IS NULL) AS inventory_active
+            FROM ebp_article article JOIN inventory_line l ON l.id = (
+                SELECT candidate.id FROM inventory_campaign recent JOIN inventory_line candidate
+                    ON candidate.campaign_id = recent.id AND candidate.unique_id = article.unique_id
+                WHERE candidate.assignment_id IS NOT NULL ORDER BY recent.id DESC LIMIT 1
+            ) JOIN inventory_campaign c ON c.id = l.campaign_id
+            WHERE article.unique_id IN (?)",
             [array_column($articles, 'unique_id')], [ArrayParameterType::STRING]);
 
         return array_map(static fn (array $article) => array_replace($article, ['inventory_active' => false],

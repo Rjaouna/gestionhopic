@@ -16,6 +16,11 @@ final readonly class Inventory
         JOIN employee e ON e.id = a.employee_id';
     private const string EMPLOYEE_VISIBLE = 'a.employee_id = ? AND c.closed_at IS NULL
         AND (a.closed_at IS NULL OR (a.review_skipped_at IS NULL AND a.closed_at > ?))';
+    private const string ASSIGNMENT_ORDER = ' ORDER BY campaign_closed IS NOT NULL, closed_at IS NOT NULL, id DESC';
+    public const array ASSIGNMENT_STATUSES = [
+        'attribuee' => 'Attribuée', 'en-cours' => 'En cours', 'a-cloturer' => 'À clôturer',
+        'cloturee' => 'Clôturée', 'finalisee' => 'Finalisée',
+    ];
 
     public function __construct(private Connection $db, private EbpCsv $csv, private EbpCatalog $catalog)
     {
@@ -119,7 +124,9 @@ final readonly class Inventory
     {
         $campaigns = $this->db->fetchAllAssociative('SELECT id, name, started_at, closed_at FROM inventory_campaign ORDER BY id DESC');
         $campaign = array_find($campaigns, static fn (array $row): bool => (int) $row['id'] === $id) ?? ($campaigns[0] ?? null);
-        $assignments = $campaign ? $this->assignments('a.campaign_id = ?', [$campaign['id']]) : [];
+        $assignments = $campaign ? $this->db->fetchAllAssociative(
+            $this->assignmentQuery('a.campaign_id = ?').self::ASSIGNMENT_ORDER, [$campaign['id']],
+        ) : [];
         $reviewedAssignment = array_find($assignments, static fn (array $row): bool => (int) $row['id'] === $assignment);
 
         return [
@@ -130,9 +137,12 @@ final readonly class Inventory
             $search, $state, $page, comparison: true) : []);
     }
 
-    public function assignmentList(?int $employee, string $search, int $page): array
+    public function assignmentList(?int $employee, string $search, int $page, string $status = '', bool $archives = false): array
     {
+        $archives = $employee === null && $archives;
+        $status = $employee === null && !$archives && isset(self::ASSIGNMENT_STATUSES[$status]) ? $status : '';
         $where = $employee === null ? '1 = 1' : self::EMPLOYEE_VISIBLE;
+        $where .= $archives ? ' AND a.archived_at IS NOT NULL' : ' AND a.archived_at IS NULL';
         $now = time();
         $values = $employee === null ? [] : [$employee, $now - self::REOPEN_SECONDS];
         if ($search !== '') {
@@ -140,13 +150,22 @@ final readonly class Inventory
                 || coalesce(a.brand, '') || ' ' || coalesce(a.category, '')), lower(?)) > 0";
             $values[] = mb_substr($search, 0, 160);
         }
-        $count = (int) $this->db->fetchOne('SELECT count(*)'.self::ASSIGNMENTS_FROM.' WHERE '.$where, $values);
+        $from = ' FROM ('.$this->assignmentQuery($where).')';
+        $countFrom = self::ASSIGNMENTS_FROM.' WHERE '.$where.' AND EXISTS (SELECT 1 FROM inventory_line WHERE assignment_id = a.id)';
+        if ($status !== '') {
+            $from .= ' WHERE assignment_status = ?';
+            $countFrom = $from;
+            $values[] = $status;
+        }
+        $count = (int) $this->db->fetchOne('SELECT count(*)'.$countFrom, $values);
         $pagination = $this->pagination($count, $page);
-        $jobs = $this->assignments($where, $values, $pagination);
+        $order = $archives ? ' ORDER BY archived_at DESC, id DESC' : self::ASSIGNMENT_ORDER;
+        $jobs = $this->db->fetchAllAssociative('SELECT *'.$from.$order
+            .' LIMIT '.self::PAGE_SIZE.' OFFSET '.$pagination['offset'], $values);
 
         return ['assignment' => null, 'assignments' => array_map(fn (array $job) => $job + [
             'reopen_seconds' => $job['review_skipped_at'] === null ? $this->reopenSeconds((int) $job['closed_at'], $now) : 0,
-        ], $jobs), 'pagination' => $pagination];
+        ], $jobs), 'pagination' => $pagination, 'inventoryStatus' => $status, 'inventoryArchives' => $archives];
     }
 
     public function assignmentView(int $assignment, ?int $employee, string $search, int $page): array
@@ -305,7 +324,7 @@ final readonly class Inventory
             }
             $progress = $this->stats($campaign);
             if (!$progress['readyToClose']) {
-                throw new DomainException('Terminez le comptage de tous les articles et clôturez toutes les affectations.');
+                throw new DomainException('Comptez tous les articles affectés et clôturez leurs affectations avant de finaliser cet inventaire.');
             }
             if ($progress['reviewUntil']) {
                 throw new DomainException('La clôture finale sera disponible à la fin du délai de correction de cinq minutes.');
@@ -368,18 +387,56 @@ final readonly class Inventory
             if ($this->campaign($campaign)['closed_at']) {
                 throw new DomainException('Cet inventaire est clôturé.');
             }
-            $this->db->delete('inventory_line', ['campaign_id' => $campaign]);
-            $this->db->delete('inventory_assignment', ['campaign_id' => $campaign]);
-            $this->db->delete('inventory_campaign', ['id' => $campaign]);
+            $this->deleteCampaign($campaign);
         });
+    }
+
+    public function archiveAssignment(int $assignment): bool
+    {
+        return $this->db->transactional(function () use ($assignment): bool {
+            $this->writeLock();
+            $job = $this->assignment($assignment, null);
+            if (!$job['campaign_closed'] || !$job['closed_at']) {
+                throw new DomainException('Clôturez l’inventaire avant d’archiver cette affectation.');
+            }
+            if ($job['archived_at'] !== null) {
+                return false;
+            }
+            $this->db->update('inventory_assignment', ['archived_at' => time()], ['id' => $assignment]);
+
+            return true;
+        });
+    }
+
+    public function deleteArchivedAssignment(int $assignment): void
+    {
+        $this->db->transactional(function () use ($assignment): void {
+            $this->writeLock();
+            $job = $this->assignment($assignment, null);
+            if (!$job['campaign_closed'] || !$job['closed_at'] || $job['archived_at'] === null) {
+                throw new DomainException('Archivez l’affectation avant de la supprimer.');
+            }
+            $this->db->delete('inventory_line', ['assignment_id' => $assignment]);
+            $this->db->delete('inventory_assignment', ['id' => $assignment]);
+            if (!$this->db->fetchOne('SELECT 1 FROM inventory_assignment WHERE campaign_id = ? LIMIT 1', [$job['campaign_id']])) {
+                $this->deleteCampaign((int) $job['campaign_id']);
+            }
+        });
+    }
+
+    private function deleteCampaign(int $campaign): void
+    {
+        $this->db->delete('inventory_line', ['campaign_id' => $campaign]);
+        $this->db->delete('inventory_assignment', ['campaign_id' => $campaign]);
+        $this->db->delete('inventory_campaign', ['id' => $campaign]);
     }
 
     public function stats(int $campaign): array
     {
         $counts = $this->db->fetchAssociative('SELECT count(*) AS total, count(assignment_id) AS assigned,
-            count(CASE WHEN completed = 1 THEN 1 END) AS finished,
-            count(CASE WHEN completed = 0 AND counted_quantity IS NOT NULL THEN 1 END) AS counting,
-            count(CASE WHEN completed = 1 AND '.self::differenceSql().' THEN 1 END) AS discrepancies
+            count(CASE WHEN assignment_id IS NOT NULL AND completed = 1 AND counted_quantity IS NOT NULL THEN 1 END) AS finished,
+            count(CASE WHEN assignment_id IS NOT NULL AND completed = 0 AND counted_quantity IS NOT NULL THEN 1 END) AS counting,
+            count(CASE WHEN assignment_id IS NOT NULL AND completed = 1 AND '.self::differenceSql().' THEN 1 END) AS discrepancies
             FROM inventory_line WHERE campaign_id = ?', [$campaign]);
         $counts = array_map('intval', $counts);
         $status = $this->db->fetchAssociative('SELECT count(CASE WHEN closed_at IS NULL THEN 1 END) AS open,
@@ -387,19 +444,21 @@ final readonly class Inventory
         $open = (int) $status['open'];
         $now = time();
         $reviewSeconds = $this->reopenSeconds((int) $status['last_close'], $now);
-        $readyToClose = $counts['total'] > 0 && $counts['finished'] === $counts['total'] && $open === 0;
+        $readyToClose = $counts['assigned'] > 0 && $counts['finished'] === $counts['assigned'] && $open === 0;
 
         return $counts + [
-            'remaining' => $counts['total'] - $counts['finished'], 'unassigned' => $counts['total'] - $counts['assigned'],
+            'remaining' => $counts['assigned'] - $counts['finished'], 'unassigned' => $counts['total'] - $counts['assigned'],
             'openAssignments' => $open, 'reviewUntil' => $reviewSeconds ? $now + $reviewSeconds : null,
             'readyToClose' => $readyToClose, 'canClose' => $readyToClose && !$reviewSeconds,
         ];
     }
 
-    public function exportRows(int $campaign): iterable
+    public function exportRows(int $campaign): \Generator
     {
-        return $this->db->iterateAssociative('SELECT unique_id, counted_quantity FROM inventory_line
-            WHERE campaign_id = ? AND completed = 1 ORDER BY reference COLLATE NOCASE, id', [$campaign]);
+        yield from $this->db->iterateAssociative('SELECT c.closed_at, l.unique_id, l.counted_quantity
+            FROM inventory_campaign c LEFT JOIN inventory_line l ON l.campaign_id = c.id AND c.closed_at IS NOT NULL
+                AND l.assignment_id IS NOT NULL AND l.completed = 1 AND l.counted_quantity IS NOT NULL
+            WHERE c.id = ? ORDER BY l.reference COLLATE NOCASE, l.id', [$campaign]);
     }
 
     private function assignmentStats(int $assignment): array
@@ -411,16 +470,20 @@ final readonly class Inventory
             'remaining' => (int) $stats['total'] - (int) $stats['finished']];
     }
 
-    private function assignments(string $where, array $values, ?array $pagination = null): array
+    private function assignmentQuery(string $where): string
     {
-        $limit = $pagination ? ' LIMIT '.self::PAGE_SIZE.' OFFSET '.$pagination['offset'] : '';
-
-        return $this->db->fetchAllAssociative('SELECT a.*, c.name, c.closed_at AS campaign_closed, e.first_name, e.last_name,
+        return "SELECT *, CASE
+            WHEN campaign_closed IS NOT NULL THEN 'finalisee'
+            WHEN closed_at IS NOT NULL THEN 'cloturee'
+            WHEN finished = total THEN 'a-cloturer'
+            WHEN finished > 0 OR counting > 0 THEN 'en-cours'
+            ELSE 'attribuee' END AS assignment_status
+            FROM (SELECT a.*, c.name, c.closed_at AS campaign_closed, e.first_name, e.last_name,
             count(l.id) AS total, count(CASE WHEN l.completed = 1 THEN 1 END) AS finished,
             count(CASE WHEN l.completed = 0 AND l.counted_quantity IS NOT NULL THEN 1 END) AS counting,
-            count(DISTINCT l.category) AS category_count, min(l.category) AS sole_category'
+            count(DISTINCT l.category) AS category_count, min(l.category) AS sole_category"
             .self::ASSIGNMENTS_FROM.' JOIN inventory_line l ON l.assignment_id = a.id
-            WHERE '.$where.' GROUP BY a.id ORDER BY c.closed_at IS NOT NULL, a.closed_at IS NOT NULL, a.id DESC'.$limit, $values);
+            WHERE '.$where.' GROUP BY a.id)';
     }
 
     private function lines(int $campaign, ?int $assignment, string $search, string $state, int $page, bool $comparison): array
