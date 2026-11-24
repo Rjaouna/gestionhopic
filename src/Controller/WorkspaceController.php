@@ -93,7 +93,8 @@ final class WorkspaceController extends AbstractController
             'collaborateurs' => ['rows' => $this->filterPeople($this->workspace->people(department: $department, includeArchived: true), $search)],
             'services' => ['rows' => $this->workspace->departments()],
             'articles-ebp' => $this->catalog->browse($search, $request->query->getString('categorie'),
-                $request->query->getString('marque'), $request->query->getInt('page', 1)),
+                $request->query->getString('marque'), $request->query->getInt('page', 1))
+                + ['catalogueClearBlock' => $this->ebp->clearCatalogueBlock()],
             'connexion-bdd' => ['ebpStatus' => $this->ebp->status()],
             'assigner' => ['campaign' => $this->inventory->active()],
             'etat' => $this->inventory->adminView($request->query->getInt('inventaire'), $request->query->getInt('affectation'), $search,
@@ -222,7 +223,7 @@ final class WorkspaceController extends AbstractController
     public function action(Request $request, #[CurrentUser] Employee $user, string $action, int $id = 0): Response
     {
         $admin = $this->isGranted('ROLE_ADMIN');
-        if (!in_array($action, ['nouvelle', 'demande', 'notifications', 'profil', 'cloturer-affectation', 'rouvrir-affectation', 'terminer-reste-inventaire'], true)) {
+        if (!in_array($action, ['nouvelle', 'demande', 'notifications', 'profil', 'cloturer-affectation', 'rouvrir-affectation', 'terminer-reste-inventaire', 'article-inventorie'], true)) {
             $this->denyAccessUnlessGranted('ROLE_ADMIN');
         }
         $data = ['action' => $action, 'id' => $id, 'admin' => $admin, 'user' => $user];
@@ -230,7 +231,7 @@ final class WorkspaceController extends AbstractController
         try {
             $data += $this->actionData($action, $id, $user, $admin);
             if ($request->isMethod('POST')) {
-                if (in_array($action, ['fiche-collaborateur', 'article-ebp'], true)) {
+                if (in_array($action, ['fiche-collaborateur', 'article-ebp', 'article-inventorie'], true)) {
                     throw new MethodNotAllowedHttpException(['GET']);
                 }
                 if (!$this->isCsrfTokenValid('action-'.$action.'-'.$id, $request->request->getString('_token'))) {
@@ -459,6 +460,7 @@ final class WorkspaceController extends AbstractController
             'fiche-collaborateur' => ['row' => $this->employeeRecord($id, includeDeleted: true), 'schedule' => $this->calendar->schedule()],
             'supprimer-collaborateur' => $this->employeeDeletionData($id, $user->id),
             'article-ebp' => ['row' => $this->catalog->article($id) ?: throw $this->createNotFoundException()],
+            'article-inventorie' => ['row' => $this->inventory->assignedArticle($id, $admin ? null : $user->id)],
             'assigner-inventaire' => $this->inventory->scopeOptions()
                 + ['people' => array_filter($this->workspace->people(), static fn (array $person) => $person['active'])],
             'cloturer-affectation', 'rouvrir-affectation' => ['assignment' => $this->inventory->assignment($id, $admin ? null : $user->id)],
@@ -467,7 +469,7 @@ final class WorkspaceController extends AbstractController
             'annuler-affectation-inventaire' => ['assignment' => $this->inventory->cancellableAssignment($id)],
             'annuler-inventaire' => ['campaign' => $this->inventory->campaign($id)],
             'vider-bdd-ebp' => $id ? throw $this->createNotFoundException()
-                : ['storedArticles' => (int) $this->db->fetchOne('SELECT count(*) FROM ebp_article')],
+                : ['storedArticles' => (int) $this->db->fetchOne('SELECT count(*) FROM ebp_article'), 'catalogueClearBlock' => $this->ebp->clearCatalogueBlock()],
             'mot-de-passe-collaborateur' => ['row' => $this->employeeRecord($id)],
             'service' => ['row' => $this->record('department', $id)],
             'solde' => ['people' => $this->workspace->people(), 'counters' => $this->workspace->counters(true),

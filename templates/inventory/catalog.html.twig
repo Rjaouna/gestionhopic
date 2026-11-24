@@ -1,12 +1,20 @@
 {% import 'workspace/_components.html.twig' as ui %}
+{% import 'inventory/_components.html.twig' as inventory %}
 {% set route = 'admin_inventory' %}
+<div data-controller="inventory-live">
 <div class="page-heading">
     <div><h1>BDD Articles EBP</h1><p>Retrouvez vos références, leurs familles et les quantités issues d’EBP.</p></div>
-    <div class="heading-actions">
-        <button class="btn btn-outline-danger" type="button" aria-haspopup="dialog"
-                data-modal-url="{{ path('workspace_action', {action:'vider-bdd-ebp'}) }}"><i class="bi bi-trash" aria-hidden="true"></i> Vider la BDD</button>
+    <div class="heading-actions" id="inventory-catalogue-actions" data-inventory-live-target="content">
+        <button class="btn btn-outline-danger" type="button"
+                {% if catalogueClearBlock %}disabled aria-describedby="inventory-catalogue-block"
+                {% else %}aria-haspopup="dialog" data-modal-url="{{ path('workspace_action', {action:'vider-bdd-ebp'}) }}"{% endif %}>
+            <i class="bi bi-trash" aria-hidden="true"></i> Vider la BDD
+        </button>
         <a class="btn btn-outline-tempo" href="{{ path(route, {section:'connexion-bdd'}) }}" data-nav><i class="bi bi-arrow-repeat" aria-hidden="true"></i> Synchroniser le catalogue</a>
     </div>
+</div>
+<div id="inventory-catalogue-block" data-inventory-live-target="content">
+    {% if catalogueClearBlock %}<p class="inventory-progress-message tone-amber mb-3">{{ catalogueClearBlock }}</p>{% endif %}
 </div>
 
 <dl class="inventory-metrics">
@@ -41,7 +49,7 @@
     {% endif %}
 </form>
 
-<section class="card inventory-catalog" aria-label="Catalogue des articles EBP" data-controller="inventory-live">
+<section class="card inventory-catalog" aria-label="Catalogue des articles EBP">
     {% if articles %}
         <div class="table-responsive" tabindex="0" aria-label="Tableau des articles">
             <table class="table tempo-table inventory-table">
@@ -56,7 +64,7 @@
                                 <div class="inventory-item">
                                     <span class="inventory-item-photo"><i class="bi bi-box-seam" aria-hidden="true"></i>{% if row.photo %}<img src="{{ row.photo }}" alt="" loading="lazy" referrerpolicy="no-referrer" data-inventory-photo>{% endif %}</span>
                                     <div class="inventory-item-name">
-                                        <strong>{{ ui.recordLink(row.description ?: row.reference, 'article-ebp', row.id, 'Consulter la fiche ' ~ row.reference) }}</strong>
+                                        {{ inventory.articleTitle(row, 'article-ebp') }}
                                         <small>{{ row.reference }}</small>
                                     </div>
                                 </div>
@@ -80,3 +88,4 @@
     {% endif %}
     {% include 'workspace/_pagination.html.twig' with {paginationLabel:'Pagination des articles EBP'} %}
 </section>
+</div>

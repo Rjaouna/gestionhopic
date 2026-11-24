@@ -33,6 +33,13 @@
     <span class="inventory-meta-badge tone-mint"><i class="bi bi-boxes" aria-hidden="true"></i> {{ total|number_format(0, ',', ' ') }} {{ total == 1 ? 'article' : 'articles' }}</span>
 {% endmacro %}
 
+{% macro articleTitle(row, action) %}
+    {% import 'workspace/_components.html.twig' as ui %}
+    {% set title = (row.description ?: row.reference)|trim %}
+    {% set label = title|length > 60 ? title|slice(0, 59)|trim ~ '…' : title %}
+    {{ ui.recordLink(label, action, row.id, 'Afficher la fiche de l’article ' ~ row.reference) }}
+{% endmacro %}
+
 {% macro countdown(seconds) %}
     <span class="inventory-meta-badge tone-amber inventory-countdown"><i class="bi bi-clock" aria-hidden="true"></i>
         Réouverture possible pendant <time datetime="PT{{ seconds }}S" data-inventory-deadline-target="clock" data-seconds="{{ seconds }}">{{ '%02d:%02d'|format(seconds // 60, seconds % 60) }}</time>

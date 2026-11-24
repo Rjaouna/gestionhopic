@@ -139,7 +139,7 @@
                             <tbody>
                                 {% for row in inventoryLines %}
                                     <tr>
-                                        <td class="inventory-item-name"><strong>{{ row.description ?: row.reference }}</strong><small>{{ row.reference }}</small></td>
+                                        <td class="inventory-item-name">{{ inventory.articleTitle(row, 'article-inventorie') }}<small>{{ row.reference }}</small></td>
                                         <td>{{ row.brand ?: '—' }}</td><td>{{ row.category ?: '—' }}</td>
                                         <td><span class="inventory-quantity tone-blue">{{ inventory.quantity(row.expected_quantity) }}</span></td>
                                         <td><span class="inventory-quantity {{ row.completed ? 'tone-mint' : (row.counted_quantity is not null ? 'tone-amber' : 'tone-neutral') }}">{{ inventory.quantity(row.counted_quantity) }}</span></td>

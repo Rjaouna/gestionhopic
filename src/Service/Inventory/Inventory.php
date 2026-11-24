@@ -185,6 +185,17 @@ final readonly class Inventory
         return $job + ['reopen_seconds' => $this->reopenSeconds((int) $job['closed_at'], $now)];
     }
 
+    public function assignedArticle(int $id, ?int $employee): array
+    {
+        $row = $this->db->fetchAssociative('SELECT l.assignment_id, l.unique_id, l.reference, l.description, l.brand, l.category, l.web_code, c.photo_path
+            FROM inventory_line l LEFT JOIN ebp_connection c ON c.id = 1
+            WHERE l.id = ? AND l.assignment_id IS NOT NULL', [$id])
+            ?: throw new NotFoundHttpException('Article introuvable dans les affectations.');
+        $this->assignment((int) $row['assignment_id'], $employee);
+
+        return $row + ['photo' => $this->catalog->photo($row, (string) $row['photo_path'])];
+    }
+
     public function saveCount(?int $employee, int $assignment, int $line, string $quantity, bool $completed, int $version): array
     {
         $quantity = str_replace(',', '.', trim($quantity));

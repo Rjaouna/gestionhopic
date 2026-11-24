@@ -81,6 +81,11 @@ export default class extends Controller {
     }
 
     handleClick(event) {
+        const blockedDeletion = event.target.closest('[data-employee-delete-reason]');
+        if (blockedDeletion) {
+            this.toast(blockedDeletion.dataset.employeeDeleteReason);
+            return;
+        }
         if (event.target.closest('[data-modal-back]')) {
             this.backModal();
             return;

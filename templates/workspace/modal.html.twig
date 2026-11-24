@@ -7,7 +7,7 @@
     'service':id ? 'Modifier le service' : 'Ajouter un service', 'solde':'Ajuster un solde',
     'type':id ? 'Modifier le type d’absence' : 'Ajouter un type d’absence', 'compteur':id ? 'Modifier le compteur' : 'Ajouter un compteur',
     'horaire':'Modifier l’horaire de travail', 'ferie':id ? 'Modifier le jour férié' : 'Ajouter un jour férié',
-    'profil':'Modifier mon profil', 'regle-conges':'Règle des congés payés', 'article-ebp':'Fiche article EBP',
+    'profil':'Modifier mon profil', 'regle-conges':'Règle des congés payés', 'article-ebp':'Fiche article EBP', 'article-inventorie':'Fiche article',
     'vider-bdd-ebp':'Vider la BDD Articles EBP', 'assigner-inventaire':'Assigner un inventaire',
     'cloturer-affectation':'Clôturer mon inventaire', 'rouvrir-affectation':'Rouvrir mon inventaire', 'cloturer-inventaire':'Clôturer l’inventaire',
     'terminer-reste-inventaire':'Terminer le reste à 0',
@@ -17,7 +17,7 @@
     'nouvelle':'calendar2-plus', 'demande':'calendar2-check', 'notifications':'bell',
     'collaborateur':id ? 'person-gear' : 'person-plus', 'fiche-collaborateur':'person-vcard',
     'mot-de-passe-collaborateur':'key', 'supprimer-collaborateur':'trash', 'service':'diagram-3', 'solde':'wallet2', 'type':'calendar2',
-    'compteur':'wallet2', 'horaire':'clock', 'ferie':'flag', 'profil':'person-circle', 'regle-conges':'calendar2-check', 'article-ebp':'box-seam',
+    'compteur':'wallet2', 'horaire':'clock', 'ferie':'flag', 'profil':'person-circle', 'regle-conges':'calendar2-check', 'article-ebp':'box-seam', 'article-inventorie':'box-seam',
     'vider-bdd-ebp':'trash', 'assigner-inventaire':'clipboard-plus',
     'cloturer-affectation':'clipboard-check', 'rouvrir-affectation':'arrow-counterclockwise', 'cloturer-inventaire':'clipboard-check',
     'terminer-reste-inventaire':'list-check',
@@ -43,13 +43,13 @@
 <form data-modal-form action="{{ path('workspace_action', {action:action,id:id}) }}" method="post" enctype="multipart/form-data" class="modal-form"
       {% if action == 'assigner-inventaire' %}data-controller="inventory-wizard" data-inventory-wizard-url-value="{{ path('admin_inventory_preview') }}" data-action="submit->inventory-wizard#validate"{% endif %}
       {% if openingBalance %}data-controller="opening-balance" data-opening-balance-url-value="{{ path('admin_paid_leave_estimate') }}"{% endif %}>
-    {% if action not in ['fiche-collaborateur', 'article-ebp'] %}<input type="hidden" name="_token" value="{{ csrf_token('action-' ~ action ~ '-' ~ id) }}">{% endif %}
+    {% if action not in ['fiche-collaborateur', 'article-ebp', 'article-inventorie'] %}<input type="hidden" name="_token" value="{{ csrf_token('action-' ~ action ~ '-' ~ id) }}">{% endif %}
     <div class="modal-body">
         <div class="{{ frame }} modal-stage">
         <div class="alert alert-danger" role="alert" data-form-error hidden></div>
         <div class="modal-card">
-        {% if action == 'article-ebp' %}
-            {% include 'inventory/_article.html.twig' %}
+        {% if action in ['article-ebp', 'article-inventorie'] %}
+            {% include 'inventory/_article.html.twig' with {showEbpFields: action == 'article-ebp'} %}
         {% elseif action == 'assigner-inventaire' %}
             {% include 'inventory/_wizard.html.twig' %}
         {% elseif action == 'cloturer-affectation' %}
@@ -86,12 +86,14 @@
                 <p class="inventory-progress-message tone-amber">Toutes ses affectations et leurs comptages seront supprimés. Le catalogue EBP est conservé.</p>
             {% endif %}
         {% elseif action == 'vider-bdd-ebp' %}
-            {% if storedArticles %}
-                <p><strong>{{ storedArticles|number_format(0, ',', ' ') }} {{ storedArticles == 1 ? 'article sera supprimé' : 'articles seront supprimés' }}</strong> du catalogue local, avec les quantités inventoriées correspondantes.</p>
+            {% if catalogueClearBlock %}
+                <p class="inventory-progress-message tone-amber">{{ catalogueClearBlock }}</p>
+            {% elseif storedArticles %}
+                <p><strong>{{ storedArticles|number_format(0, ',', ' ') }} {{ storedArticles == 1 ? 'article sera supprimé' : 'articles seront supprimés' }}</strong> du catalogue local. Les inventaires clôturés restent consultables.</p>
             {% else %}
                 <p>Le catalogue local est déjà vide.</p>
             {% endif %}
-            <p class="muted mb-0">Les mises à jour en cours ou en attente seront annulées.</p>
+            {% if not catalogueClearBlock %}<p class="muted mb-0">Les mises à jour en cours ou en attente seront annulées.</p>{% endif %}
         {% elseif action == 'nouvelle' %}
             <div data-duration-url="{{ path('workspace_duration') }}" class="form-stack">
                 {% if admin %}{{ ui.employeePicker('leave-employee', people) }}{% endif %}
@@ -327,7 +329,7 @@
         {% elseif action == 'supprimer-collaborateur' %}
             {% if not deletionBlock %}<button class="btn btn-danger" type="submit"><i class="bi bi-trash" aria-hidden="true"></i> Confirmer la suppression</button>{% endif %}
         {% elseif action == 'vider-bdd-ebp' %}
-            <button class="btn btn-danger" type="submit"><i class="bi bi-trash" aria-hidden="true"></i> Vider la BDD</button>
+            {% if not catalogueClearBlock %}<button class="btn btn-danger" type="submit"><i class="bi bi-trash" aria-hidden="true"></i> Vider la BDD</button>{% endif %}
         {% elseif action == 'assigner-inventaire' %}
             <button class="btn btn-outline-tempo" type="button" data-inventory-wizard-target="back" data-action="inventory-wizard#back" hidden>Précédent</button>
             <button class="btn btn-tempo" type="button" data-inventory-wizard-target="next" data-action="inventory-wizard#next" disabled>Suivant</button>
@@ -342,7 +344,7 @@
             {% if action == 'annuler-affectation-inventaire' or not campaign.closed_at %}
                 <button class="btn btn-danger" type="submit">Confirmer l’annulation</button>
             {% endif %}
-        {% elseif action not in ['fiche-collaborateur', 'article-ebp'] %}
+        {% elseif action not in ['fiche-collaborateur', 'article-ebp', 'article-inventorie'] %}
             <button class="btn btn-tempo" type="submit">{{ action == 'nouvelle' ? 'Envoyer la demande' : 'Enregistrer' }}</button>
         {% endif %}
         {% if action in ['ferie', 'compteur'] and id %}

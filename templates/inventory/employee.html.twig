@@ -91,7 +91,7 @@
                     <article class="card inventory-count-row" data-count-state="{{ state }}">
                         <div class="inventory-item">
                             <span class="inventory-item-photo"><i class="bi bi-box-seam" aria-hidden="true"></i>{% if row.photo %}<img src="{{ row.photo }}" alt="" loading="lazy" referrerpolicy="no-referrer" data-inventory-photo>{% endif %}</span>
-                            <div class="inventory-item-name"><strong>{{ row.description ?: row.reference }}</strong><small>{{ row.reference }}{% if row.brand %} · {{ row.brand }}{% endif %}{% if row.category %} · {{ row.category }}{% endif %}</small></div>
+                            <div class="inventory-item-name">{{ inventory.articleTitle(row, 'article-inventorie') }}<small>{{ row.reference }}{% if row.brand %} · {{ row.brand }}{% endif %}{% if row.category %} · {{ row.category }}{% endif %}</small></div>
                         </div>
                         {% if editable %}
                             <form class="inventory-count-form" method="post" action="{{ path(admin ? 'admin_inventory_save_count' : 'inventory_save_count', {assignment:assignment.id, line:row.id}) }}"

@@ -12,6 +12,7 @@ final readonly class EbpSynchronization
         private EbpSource $source,
         private EbpCsv $csv,
         private EbpCatalog $catalog,
+        private Inventory $inventory,
     ) {
     }
 
@@ -78,9 +79,19 @@ final readonly class EbpSynchronization
         return $this->status();
     }
 
+    public function clearCatalogueBlock(): ?string
+    {
+        return $this->inventory->active() ? 'Vidage bloqué pendant l’inventaire. Clôturez ou annulez la campagne pour continuer.' : null;
+    }
+
     public function clearCatalogue(): int
     {
         return $this->db->transactional(function (): int {
+            // Acquire the SQLite write lock before checking for a concurrent assignment.
+            $this->db->executeStatement('UPDATE ebp_connection SET id = id WHERE id = 1');
+            if (($block = $this->clearCatalogueBlock()) !== null) {
+                throw new DomainException($block);
+            }
             // Invalidate any pending or running import before removing its destination.
             $this->db->update('ebp_connection', ['last_import_at' => null, 'last_count' => 0] + $this->idleState(), ['id' => 1]);
 
