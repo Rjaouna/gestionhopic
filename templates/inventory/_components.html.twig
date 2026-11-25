@@ -31,11 +31,13 @@
     <span class="inventory-meta-badge tone-mint"><i class="bi bi-boxes" aria-hidden="true"></i> {{ total|number_format(0, ',', ' ') }} {{ total == 1 ? 'article' : 'articles' }}</span>
 {% endmacro %}
 
-{% macro articleTitle(row, action) %}
+{% macro articleSummary(row, action) %}
     {% import 'workspace/_components.html.twig' as ui %}
-    {% set title = (row.description ?: row.reference)|trim %}
-    {% set label = title|length > 60 ? title|slice(0, 59)|trim ~ '…' : title %}
-    {{ ui.recordLink(label, action, row.id, 'Afficher la fiche de l’article ' ~ row.reference) }}
+    {% set description = row.description|trim %}
+    {{ ui.recordLink(row.reference, action, row.id, 'Voir la fiche de l’article ' ~ row.reference) }}
+    {% if description is not empty and description is not same as(row.reference) %}
+        <small>{{ description|length > 60 ? description|slice(0, 59)|trim ~ '…' : description }}</small>
+    {% endif %}
 {% endmacro %}
 
 {% macro countdown(seconds) %}

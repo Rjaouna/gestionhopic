@@ -54,7 +54,7 @@
         <div class="table-responsive" tabindex="0" aria-label="Tableau des articles">
             <table class="table tempo-table inventory-table">
                 <thead><tr>
-                    <th scope="col">Article</th><th scope="col">Inventaire</th><th scope="col">Catégorie</th><th scope="col">Marque</th>
+                    <th scope="col">Référence article</th><th scope="col">Inventaire</th><th scope="col">Catégorie</th><th scope="col">Marque</th>
                     <th scope="col" class="text-end">Qté EBP</th><th scope="col" class="text-end">Qté inventoriée</th>
                 </tr></thead>
                 <tbody>
@@ -63,10 +63,7 @@
                             <td>
                                 <div class="inventory-item">
                                     <span class="inventory-item-photo"><i class="bi bi-box-seam" aria-hidden="true"></i>{% if row.photo %}<img src="{{ row.photo }}" alt="" loading="lazy" referrerpolicy="no-referrer" data-inventory-photo>{% endif %}</span>
-                                    <div class="inventory-item-name">
-                                        {{ inventory.articleTitle(row, 'article-ebp') }}
-                                        <small>{{ row.reference }}</small>
-                                    </div>
+                                    <div class="inventory-item-name">{{ inventory.articleSummary(row, 'article-ebp') }}</div>
                                 </div>
                             </td>
                             <td id="ebp-inventory-{{ row.id }}" data-inventory-live-target="content">

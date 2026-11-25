@@ -141,11 +141,11 @@
                 {% if inventoryLines %}
                     <div class="table-responsive" tabindex="0" aria-label="Comparaison des quantités">
                         <table class="table tempo-table inventory-table">
-                            <thead><tr><th scope="col">Article</th><th scope="col">Marque</th><th scope="col">Catégorie</th><th scope="col">Qté EBP</th><th scope="col">Qté inventoriée</th><th scope="col">Écart</th><th scope="col">Statut</th></tr></thead>
+                            <thead><tr><th scope="col">Référence article</th><th scope="col">Marque</th><th scope="col">Catégorie</th><th scope="col">Qté EBP</th><th scope="col">Qté inventoriée</th><th scope="col">Écart</th><th scope="col">Statut</th></tr></thead>
                             <tbody>
                                 {% for row in inventoryLines %}
                                     <tr>
-                                        <td class="inventory-item-name">{{ inventory.articleTitle(row, 'article-inventorie') }}<small>{{ row.reference }}</small></td>
+                                        <td class="inventory-item-name">{{ inventory.articleSummary(row, 'article-inventorie') }}</td>
                                         <td>{{ row.brand ?: '—' }}</td><td>{{ row.category ?: '—' }}</td>
                                         <td><span class="inventory-quantity tone-blue">{{ inventory.quantity(row.expected_quantity) }}</span></td>
                                         <td><span class="inventory-quantity {{ row.completed ? 'tone-mint' : (row.counted_quantity is not null ? 'tone-amber' : 'tone-neutral') }}">{{ inventory.quantity(row.counted_quantity) }}</span></td>

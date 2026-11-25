@@ -7,7 +7,12 @@
 } %}
 <div class="inventory-article-heading">
     <span class="inventory-item-photo"><i class="bi bi-box-seam" aria-hidden="true"></i>{% if row.photo %}<img src="{{ row.photo }}" alt="" referrerpolicy="no-referrer" data-inventory-photo>{% endif %}</span>
-    <div><h3>{{ row.description ?: row.reference }}</h3><p class="muted mb-0">{{ row.reference }}{% if row.brand %} · {{ row.brand }}{% endif %}{% if row.category %} · {{ row.category }}{% endif %}</p></div>
+    <div>
+        <h3>{{ row.reference }}</h3>
+        {% set description = row.description|trim %}
+        {% if description is not empty and description is not same as(row.reference) %}<p class="mb-1">{{ description }}</p>{% endif %}
+        {% if row.brand or row.category %}<p class="muted mb-0">{{ row.brand }}{{ row.brand and row.category ? ' · ' }}{{ row.category }}</p>{% endif %}
+    </div>
 </div>
 {% if showEbpFields %}
 <dl class="employee-facts inventory-source-fields">
