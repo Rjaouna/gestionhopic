@@ -1,7 +1,7 @@
 {% import 'workspace/_components.html.twig' as ui %}
 {% import 'inventory/_components.html.twig' as inventory %}
 {% set labels = {
-    'nouvelle':'Nouvelle demande', 'demande':'Détails de la demande', 'notifications':'Notifications',
+    'nouvelle':'Nouvelle demande', 'demande':'Détails de la demande', 'notifications':'Notifications', 'installer-application':'Installer l’application',
     'collaborateur':id ? 'Modifier le collaborateur' : 'Ajouter un collaborateur',
     'fiche-collaborateur':'Fiche collaborateur', 'mot-de-passe-collaborateur':'Réinitialiser le mot de passe', 'supprimer-collaborateur':'Supprimer le collaborateur',
     'service':id ? 'Modifier le service' : 'Ajouter un service', 'solde':'Ajuster un solde',
@@ -15,7 +15,7 @@
     'archiver-affectation-inventaire':'Archiver l’affectation', 'supprimer-affectation-inventaire':'Supprimer l’affectation archivée'
 } %}
 {% set icons = {
-    'nouvelle':'calendar2-plus', 'demande':'calendar2-check', 'notifications':'bell',
+    'nouvelle':'calendar2-plus', 'demande':'calendar2-check', 'notifications':'bell', 'installer-application':'download',
     'collaborateur':id ? 'person-gear' : 'person-plus', 'fiche-collaborateur':'person-vcard',
     'mot-de-passe-collaborateur':'key', 'supprimer-collaborateur':'trash', 'service':'diagram-3', 'solde':'wallet2', 'type':'calendar2',
     'compteur':'wallet2', 'horaire':'clock', 'ferie':'flag', 'profil':'person-circle', 'regle-conges':'calendar2-check', 'article-ebp':'box-seam', 'article-inventorie':'box-seam',
@@ -29,7 +29,8 @@
 {% set archiveAction = action in ['archiver-affectation-inventaire', 'supprimer-affectation-inventaire'] %}
 {% set deleteArchive = action == 'supprimer-affectation-inventaire' %}
 {% set canChangeArchive = archiveAction and assignment.campaign_closed and assignment.closed_at and (deleteArchive ? assignment.archived_at is not null : assignment.archived_at is null) %}
-{% set frame = 'modal-frame' ~ (inventoryCancellation or archiveAction or action in ['mot-de-passe-collaborateur','supprimer-collaborateur','notifications','profil','ferie','vider-bdd-ebp','terminer-reste-inventaire','annuler-delai-inventaire'] ? ' modal-frame-compact' : '') %}
+{% set readOnly = action in ['fiche-collaborateur', 'article-ebp', 'article-inventorie', 'installer-application'] %}
+{% set frame = 'modal-frame' ~ (inventoryCancellation or archiveAction or action in ['mot-de-passe-collaborateur','supprimer-collaborateur','notifications','profil','ferie','vider-bdd-ebp','terminer-reste-inventaire','annuler-delai-inventaire','installer-application'] ? ' modal-frame-compact' : '') %}
 {% set canSkipDelay = action == 'annuler-delai-inventaire' and not campaign.closed_at and inventoryStats.readyToClose and inventoryStats.reviewUntil %}
 {% set openingBalance = action == 'collaborateur' and not id and paidLeaveRule.counter_name is not null %}
 <header class="modal-header">
@@ -49,7 +50,7 @@
 <form data-modal-form action="{{ path('workspace_action', {action:action,id:id}) }}" method="post" enctype="multipart/form-data" class="modal-form"
       {% if action == 'assigner-inventaire' %}data-controller="inventory-wizard" data-inventory-wizard-url-value="{{ path('admin_inventory_preview') }}" data-action="submit->inventory-wizard#validate"{% endif %}
       {% if openingBalance %}data-controller="opening-balance" data-opening-balance-url-value="{{ path('admin_paid_leave_estimate') }}"{% endif %}>
-    {% if action not in ['fiche-collaborateur', 'article-ebp', 'article-inventorie'] %}<input type="hidden" name="_token" value="{{ csrf_token('action-' ~ action ~ '-' ~ id) }}">{% endif %}
+    {% if not readOnly %}<input type="hidden" name="_token" value="{{ csrf_token('action-' ~ action ~ '-' ~ id) }}">{% endif %}
     <div class="modal-body">
         <div class="{{ frame }} modal-stage">
         <div class="alert alert-danger" role="alert" data-form-error hidden></div>
@@ -171,6 +172,19 @@
                     <textarea name="reason" class="form-control" rows="2" maxlength="500" placeholder="Ex. Effectif minimum à assurer"></textarea>
                 </label>
             {% endif %}
+        {% elseif action == 'installer-application' %}
+            <p>Ouvrez le back-office dans le navigateur de l’appareil sur lequel vous souhaitez installer l’application.</p>
+            {% set devices = [
+                ['phone', 'iPhone et iPad', 'Dans Safari, touchez Partager, puis Sur l’écran d’accueil. Activez Ouvrir comme app web si l’option est proposée, puis touchez Ajouter.'],
+                ['android2', 'Android', 'Dans Chrome, ouvrez le menu ⋮, puis Installer et créer un raccourci ou Ajouter à l’écran d’accueil selon la version. Choisissez Installer.'],
+                ['laptop', 'Ordinateur avec Chrome ou Edge', 'Utilisez l’icône d’installation dans la barre d’adresse ou recherchez l’option d’installation dans le menu du navigateur.'],
+                ['apple', 'Mac avec Safari', 'Cliquez sur Partager, puis sur Ajouter au Dock.']
+            ] %}
+            <ul class="notification-list list-unstyled mb-0">
+                {% for device in devices %}
+                    <li><span class="metric-icon tone-mint"><i class="bi bi-{{ device[0] }}" aria-hidden="true"></i></span><div><strong>{{ device[1] }}</strong><p class="muted mb-0">{{ device[2] }}</p></div></li>
+                {% endfor %}
+            </ul>
         {% elseif action == 'notifications' %}
             {% if rows %}<ul class="notification-list list-unstyled mb-0">{% for item in rows %}<li><span class="metric-icon tone-{{ item.read_at ? 'neutral' : 'mint' }}"><i class="bi bi-bell" aria-hidden="true"></i></span><div><strong>{{ item.message }}</strong><small>{{ tempo_date(item.created_at, 'd MMM yyyy, HH:mm') }}</small></div></li>{% endfor %}</ul>
             {% else %}{{ ui.empty('Aucune notification.', 'bell') }}{% endif %}
@@ -374,7 +388,7 @@
             {% if action == 'annuler-affectation-inventaire' or not campaign.closed_at %}
                 <button class="btn btn-danger" type="submit">Confirmer l’annulation</button>
             {% endif %}
-        {% elseif action not in ['fiche-collaborateur', 'article-ebp', 'article-inventorie'] %}
+        {% elseif not readOnly %}
             <button class="btn btn-tempo" type="submit">{{ action == 'nouvelle' ? 'Envoyer la demande' : 'Enregistrer' }}</button>
         {% endif %}
         {% if action in ['ferie', 'compteur'] and id %}

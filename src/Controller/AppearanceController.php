@@ -75,7 +75,9 @@ final class AppearanceController extends AbstractController
             'short_name' => mb_substr($appearance['name'], 0, 24),
             'description' => 'Congés et absences',
             'lang' => 'fr',
-            'start_url' => $this->generateUrl('employee_dashboard'),
+            // Preserve the identity of installations made with the former start URL.
+            'id' => $this->generateUrl('employee_dashboard'),
+            'start_url' => $this->generateUrl('app_home'),
             'scope' => $this->generateUrl('app_home'),
             'display' => 'standalone',
             'background_color' => $appearance['backgroundColor'],

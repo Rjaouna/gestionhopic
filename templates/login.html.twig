@@ -1,29 +1,37 @@
 {% extends 'base.html.twig' %}
 {% import '_brand.html.twig' as brand %}
 {% block title %}Connexion · {{ identity.title }}{% endblock %}
+{% block scripts %}{{ importmap('login') }}{% endblock %}
 {% block body %}
-<main class="login-shell">
-    <section class="login-brand-panel">
-        <a class="brand" href="{{ path('app_login') }}" aria-label="{{ identity.title }}">{{ brand.logo(identity) }}{{ brand.word(identity) }}</a>
-        <div class="login-intro">
-            <div class="login-art" aria-hidden="true"><i class="bi bi-calendar2-week"></i><span class="dot dot-a"></span><span class="dot dot-b"></span></div>
-            <h1>Congés et<br>absences</h1>
-            <p>Consultez le planning et gérez vos demandes dans votre espace.</p>
+<main class="login-shell" data-controller="login" data-login-failed-value="{{ error ? 'true' : 'false' }}">
+    <div class="login-visual" aria-hidden="true"></div>
+    <section class="login-panel login-welcome" aria-labelledby="login-welcome-title">
+        <div class="login-welcome-content">
+            <div class="login-welcome-brand">
+                <div class="brand login-brand">{{ brand.logo(identity) }}{{ brand.word(identity) }}</div>
+                <span class="login-sector">Pièces automobiles</span>
+            </div>
+            <h1 id="login-welcome-title">Votre espace de travail</h1>
+            <p>Consultez votre planning, vos demandes et vos inventaires.</p>
+            <button class="btn btn-tempo login-cta" type="button" aria-controls="login-form-panel"
+                    data-login-target="openButton" data-action="login#open">
+                Connexion <i class="bi bi-arrow-right" aria-hidden="true"></i>
+            </button>
         </div>
     </section>
-    <section class="login-form-panel">
+    <section class="login-panel login-form-panel" id="login-form-panel" aria-labelledby="login-form-title">
         <div class="login-form-content">
-            <div class="brand login-mobile-brand">{{ brand.logo(identity) }}{{ brand.word(identity) }}</div>
-            <h2>Connectez-vous</h2>
-            <p class="muted">Accédez à votre espace.</p>
-            {% if error %}<div class="alert alert-danger" role="alert">Connexion refusée. Vérifiez vos identifiants ou réessayez dans quelques instants.</div>{% endif %}
+            <div class="brand login-brand">{{ brand.logo(identity) }}{{ brand.word(identity) }}</div>
+            <h1 id="login-form-title" tabindex="-1" data-login-target="formTitle">Connectez-vous</h1>
+            {% if error %}<div class="alert alert-danger" role="alert" data-login-target="error">Connexion refusée. Vérifiez vos identifiants ou réessayez dans quelques instants.</div>{% endif %}
             <form method="post" class="login-form">
                 <label for="login-email" class="form-label">Adresse e-mail</label>
                 <input class="form-control mb-3" name="_username" id="login-email" type="email" value="{{ username }}" placeholder="prenom@entreprise.fr" autocomplete="username" required>
                 <label for="login-password" class="form-label">Mot de passe</label>
-                <input class="form-control" name="_password" id="login-password" type="password" placeholder="Votre mot de passe" autocomplete="current-password" required>
+                <input class="form-control" name="_password" id="login-password" type="password" placeholder="Votre mot de passe" autocomplete="current-password" data-login-target="password" required>
                 <input type="hidden" name="_csrf_token" value="{{ csrf_token('authenticate') }}">
-                <button class="btn btn-tempo w-100 mt-4">Se connecter</button>
+                <button class="btn btn-tempo mt-4 login-cta" type="submit">Se connecter</button>
+                <button class="btn login-cancel" type="button" data-action="login#cancel"><i class="bi bi-arrow-left" aria-hidden="true"></i> Annuler</button>
             </form>
         </div>
     </section>

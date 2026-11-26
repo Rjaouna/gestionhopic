@@ -232,7 +232,7 @@ final class WorkspaceController extends AbstractController
         try {
             $data += $this->actionData($action, $id, $user, $admin);
             if ($request->isMethod('POST')) {
-                if (in_array($action, ['fiche-collaborateur', 'article-ebp', 'article-inventorie'], true)) {
+                if (in_array($action, ['fiche-collaborateur', 'article-ebp', 'article-inventorie', 'installer-application'], true)) {
                     throw new MethodNotAllowedHttpException(['GET']);
                 }
                 if (!$this->isCsrfTokenValid('action-'.$action.'-'.$id, $request->request->getString('_token'))) {
@@ -481,6 +481,7 @@ final class WorkspaceController extends AbstractController
                 'types' => $this->workspace->leaveTypes(true, !$admin), 'today' => new DateTimeImmutable('today')],
             'demande' => ['row' => $this->viewableRequest($id)],
             'notifications' => ['rows' => $this->workspace->notifications($user->id)],
+            'installer-application' => [],
             'collaborateur' => ['row' => $id ? $this->employeeRecord($id) : [],
                 'departments' => $this->workspace->departments(), 'paidLeaveRule' => $id ? null : $this->accrual->rule()],
             'regle-conges' => ['rule' => $this->accrual->rule(), 'counters' => $this->workspace->counters(true)],

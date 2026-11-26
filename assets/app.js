@@ -6,6 +6,7 @@ import InventoryDeadlineController from './controllers/inventory_deadline_contro
 import InventoryLiveController from './controllers/inventory_live_controller.js';
 import InventoryWizardController from './controllers/inventory_wizard_controller.js';
 import OpeningBalanceController from './controllers/opening_balance_controller.js';
+import PwaInstallController from './controllers/pwa_install_controller.js';
 import WorkspaceController from './controllers/workspace_controller.js';
 
 const app = Application.start();
@@ -17,7 +18,8 @@ app.register('inventory-deadline', InventoryDeadlineController);
 app.register('inventory-live', InventoryLiveController);
 app.register('inventory-wizard', InventoryWizardController);
 app.register('opening-balance', OpeningBalanceController);
+app.register('pwa-install', PwaInstallController);
 
-if ('serviceWorker' in navigator && document.body.classList.contains('employee-layout')) {
+if ('serviceWorker' in navigator) {
     navigator.serviceWorker.register('/sw.js').catch(() => {});
 }

@@ -6,9 +6,10 @@ self.addEventListener('install', event => {
 });
 
 self.addEventListener('activate', event => {
-    event.waitUntil(caches.keys().then(keys => Promise.all(
+    const cleanCaches = caches.keys().then(keys => Promise.all(
         keys.filter(key => key.startsWith('tempo-public-') && key !== cacheName).map(key => caches.delete(key)),
-    )));
+    ));
+    event.waitUntil(Promise.all([cleanCaches, self.clients.claim()]));
 });
 
 self.addEventListener('fetch', event => {
